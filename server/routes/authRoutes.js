@@ -5,9 +5,9 @@ import { handleValidation } from '../middlewares/validation.js';
 
 const router = Router();
 
-// Validaciones para registro
+// Validaciones para registro (actualizadas a español)
 const registerValidations = [
-  body('name')
+  body('nombre')  // Cambiado de 'name' a 'nombre'
     .notEmpty().withMessage('El nombre es obligatorio')
     .isLength({ min: 2 }).withMessage('El nombre debe tener al menos 2 caracteres'),
     
@@ -30,8 +30,8 @@ const loginValidations = [
     .notEmpty().withMessage('La contraseña es obligatoria')
 ];
 
-// Aplicar validaciones a las rutas
-router.post('/register', registerValidations, handleValidation, register);
+// Rutas actualizadas
+router.post('/registro', registerValidations, handleValidation, register);  // Cambiado a '/registro'
 router.post('/login', loginValidations, handleValidation, login);
 
 export default router;

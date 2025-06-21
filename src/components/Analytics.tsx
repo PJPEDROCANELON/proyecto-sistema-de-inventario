@@ -7,8 +7,77 @@ import {
   Activity,
   Calendar
 } from 'lucide-react';
+import { User } from '../types';
 
-const Analytics: React.FC = () => {
+interface AnalyticsProps {
+  user: User | null;
+}
+
+// Mapeo de colores para evitar problemas con Tailwind
+const colorClasses = {
+  cyan: {
+    container: 'bg-cyan-500/20 border-cyan-500/30',
+    icon: 'text-cyan-400'
+  },
+  emerald: {
+    container: 'bg-emerald-500/20 border-emerald-500/30',
+    icon: 'text-emerald-400'
+  },
+  amber: {
+    container: 'bg-amber-500/20 border-amber-500/30',
+    icon: 'text-amber-400'
+  },
+  purple: {
+    container: 'bg-purple-500/20 border-purple-500/30',
+    icon: 'text-purple-400'
+  }
+};
+
+interface MetricCardProps {
+  title: string;
+  value: string;
+  change: string;
+  trend: 'up' | 'down';
+  icon: React.ElementType;
+  color?: keyof typeof colorClasses;
+}
+
+const MetricCard: React.FC<MetricCardProps> = ({ 
+  title, 
+  value, 
+  change, 
+  trend, 
+  icon: Icon,
+  color = 'cyan'
+}) => {
+  const colors = colorClasses[color] || colorClasses.cyan;
+  
+  return (
+    <div className="bg-slate-800/30 rounded-xl border border-slate-700/50 backdrop-blur-sm p-6">
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-slate-400 text-sm">{title}</p>
+          <p className="text-2xl font-bold text-white mt-2">{value}</p>
+          <div className="flex items-center gap-1 mt-2">
+            {trend === 'up' ? (
+              <TrendingUp className="w-4 h-4 text-emerald-400" />
+            ) : (
+              <TrendingDown className="w-4 h-4 text-red-400" />
+            )}
+            <span className={`text-sm ${trend === 'up' ? 'text-emerald-400' : 'text-red-400'}`}>
+              {change}
+            </span>
+          </div>
+        </div>
+        <div className={`p-3 rounded-lg border ${colors.container}`}>
+          <Icon className={`w-6 h-6 ${colors.icon}`} />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const Analytics: React.FC<AnalyticsProps> = ({ user }) => {
   const chartData = {
     inventoryTrend: [
       { month: 'Jan', value: 85 },
@@ -26,74 +95,21 @@ const Analytics: React.FC = () => {
     ]
   };
 
-  // Mapeo de colores para evitar problemas con Tailwind
-  const colorClasses = {
-    cyan: {
-      container: 'bg-cyan-500/20 border-cyan-500/30',
-      icon: 'text-cyan-400'
-    },
-    emerald: {
-      container: 'bg-emerald-500/20 border-emerald-500/30',
-      icon: 'text-emerald-400'
-    },
-    amber: {
-      container: 'bg-amber-500/20 border-amber-500/30',
-      icon: 'text-amber-400'
-    },
-    purple: {
-      container: 'bg-purple-500/20 border-purple-500/30',
-      icon: 'text-purple-400'
-    }
-  };
-
-  const MetricCard = ({ 
-    title, 
-    value, 
-    change, 
-    trend, 
-    icon: Icon,
-    color = 'cyan'
-  }: {
-    title: string;
-    value: string;
-    change: string;
-    trend: 'up' | 'down';
-    icon: React.ComponentType<any>;
-    color?: keyof typeof colorClasses;
-  }) => {
-    const colors = colorClasses[color] || colorClasses.cyan;
-    
-    return (
-      <div className="bg-slate-800/30 rounded-xl border border-slate-700/50 backdrop-blur-sm p-6">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-slate-400 text-sm">{title}</p>
-            <p className="text-2xl font-bold text-white mt-2">{value}</p>
-            <div className="flex items-center gap-1 mt-2">
-              {trend === 'up' ? (
-                <TrendingUp className="w-4 h-4 text-emerald-400" />
-              ) : (
-                <TrendingDown className="w-4 h-4 text-red-400" />
-              )}
-              <span className={`text-sm ${trend === 'up' ? 'text-emerald-400' : 'text-red-400'}`}>
-                {change}
-              </span>
-            </div>
-          </div>
-          <div className={`p-3 rounded-lg border ${colors.container}`}>
-            <Icon className={`w-6 h-6 ${colors.icon}`} />
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   return (
     <div className="space-y-8">
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold text-white">Analytics Dashboard</h1>
         <p className="text-slate-400 mt-1">Advanced inventory analytics and insights</p>
+        
+        {/* Mensaje de usuario */}
+        {user && (
+          <p className="text-slate-300 mt-2 flex items-center">
+            <span className="bg-purple-500/10 text-purple-400 border border-purple-500/20 px-2 py-1 rounded-md text-sm">
+              Usuario: {user.email}
+            </span>
+          </p>
+        )}
       </div>
 
       {/* Key Metrics */}

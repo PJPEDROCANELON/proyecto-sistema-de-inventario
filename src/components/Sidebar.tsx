@@ -4,17 +4,26 @@ import {
   Package, 
   BarChart3, 
   Settings, 
-  Search,
   Bell,
   Zap
-} from 'lucide-react';
+} from 'lucide-react'; // Eliminado Search ya que no se usa
 
 interface SidebarProps {
   activeSection: string;
   onSectionChange: (section: string) => void;
+  user: {  // Añadida la prop user
+    id: number;
+    nombre: string;
+    email: string;
+    createdAt: string;
+  };
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ activeSection, onSectionChange }) => {
+const Sidebar: React.FC<SidebarProps> = ({ 
+  activeSection, 
+  onSectionChange,
+  user  // Recibiendo la prop user
+}) => {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: Home },
     { id: 'inventory', label: 'Inventory', icon: Package },
@@ -39,8 +48,21 @@ const Sidebar: React.FC<SidebarProps> = ({ activeSection, onSectionChange }) => 
         </div>
       </div>
 
+      {/* User Profile Section - Añadido */}
+      <div className="p-4 border-b border-cyan-500/20 flex items-center gap-3">
+        <div className="bg-cyan-500/10 rounded-full w-10 h-10 flex items-center justify-center">
+          <span className="text-cyan-300 font-bold">
+            {user.nombre.charAt(0).toUpperCase()}
+          </span>
+        </div>
+        <div>
+          <h3 className="text-white font-medium">{user.nombre}</h3>
+          <p className="text-xs text-cyan-400 truncate">{user.email}</p>
+        </div>
+      </div>
+
       {/* Navigation */}
-      <nav className="mt-8">
+      <nav className="mt-4">
         {menuItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeSection === item.id;

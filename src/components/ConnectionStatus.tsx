@@ -1,100 +1,52 @@
 import React, { useState, useEffect } from 'react';
-import { Wifi, WifiOff, AlertTriangle, Zap } from 'lucide-react';
-import ApiGateway from '../services/ApiGateway';
+import { Wifi, WifiOff } from 'lucide-react';
+import ApiGateway from '../services/ApiGateway'; // Importa la instancia de ApiGateway
 
 const ConnectionStatus: React.FC = () => {
-  const [status, setStatus] = useState<'online' | 'offline' | 'unstable'>('online');
-  const [isVisible, setIsVisible] = useState(false);
+  const [isConnected, setIsConnected] = useState<boolean | null>(null);
 
-  useEffect(() => {
-    const checkConnection = () => {
-      const connectionStatus = ApiGateway.getConnectionStatus();
-      setStatus(connectionStatus);
-      
-      // Show status indicator when connection is not optimal
-      setIsVisible(connectionStatus !== 'online');
-    };
-
-    // Initial check
-    checkConnection();
-
-    // Set up periodic checks
-    const interval = setInterval(checkConnection, 5000);
-
-    // Listen for online/offline events
-    const handleOnline = () => {
-      setStatus('online');
-      setIsVisible(false);
-    };
-
-    const handleOffline = () => {
-      setStatus('offline');
-      setIsVisible(true);
-    };
-
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
-
-  if (!isVisible) return null;
-
-  const getStatusConfig = () => {
-    switch (status) {
-      case 'offline':
-        return {
-          icon: WifiOff,
-          color: 'text-red-400',
-          bgColor: 'bg-red-500/20',
-          borderColor: 'border-red-500/30',
-          message: 'Connection Lost',
-          description: 'NeoStock servers unreachable'
-        };
-      case 'unstable':
-        return {
-          icon: AlertTriangle,
-          color: 'text-amber-400',
-          bgColor: 'bg-amber-500/20',
-          borderColor: 'border-amber-500/30',
-          message: 'Unstable Connection',
-          description: 'Experiencing connectivity issues'
-        };
-      default:
-        return {
-          icon: Wifi,
-          color: 'text-emerald-400',
-          bgColor: 'bg-emerald-500/20',
-          borderColor: 'border-emerald-500/30',
-          message: 'Connected',
-          description: 'All systems operational'
-        };
+  const checkConnection = async () => {
+    try {
+      // Usar el nuevo método getConnectionStatus de ApiGateway
+      const status = await ApiGateway.getConnectionStatus(); 
+      setIsConnected(status);
+    } catch (error) {
+      console.error('Failed to check API connection:', error);
+      setIsConnected(false);
     }
   };
 
-  const config = getStatusConfig();
-  const Icon = config.icon;
+  useEffect(() => {
+    // Verificar la conexión inmediatamente al montar el componente
+    checkConnection();
+
+    // Establecer un intervalo para verificar la conexión periódicamente (ej. cada 10 segundos)
+    const interval = setInterval(checkConnection, 10000); 
+
+    // Limpiar el intervalo cuando el componente se desmonte
+    return () => clearInterval(interval);
+  }, []); // El array de dependencias vacío asegura que se ejecute solo una vez al montar
+
+  if (isConnected === null) {
+    // Estado inicial mientras se verifica la conexión
+    return (
+      <div className="flex items-center text-yellow-400 bg-yellow-500/10 px-3 py-1 rounded-full text-xs animate-pulse">
+        <Wifi className="w-3 h-3 mr-1" />
+        Verificando conexión...
+      </div>
+    );
+  }
 
   return (
-    <div className={`fixed top-4 right-4 z-50 ${config.bgColor} ${config.borderColor} border backdrop-blur-sm rounded-lg p-4 shadow-lg transition-all duration-300`}>
-      <div className="flex items-center gap-3">
-        <div className={`p-2 rounded-lg ${config.bgColor} ${config.borderColor} border`}>
-          <Icon className={`w-5 h-5 ${config.color}`} />
-        </div>
-        <div>
-          <h4 className={`font-medium ${config.color}`}>{config.message}</h4>
-          <p className="text-slate-400 text-sm">{config.description}</p>
-        </div>
-        {status === 'offline' && (
-          <div className="ml-2">
-            <Zap className="w-4 h-4 text-cyan-400 animate-pulse" />
-          </div>
-        )}
-      </div>
+    <div className={`flex items-center px-3 py-1 rounded-full text-xs ${
+      isConnected ? 'text-emerald-400 bg-emerald-500/10' : 'text-red-400 bg-red-500/10'
+    }`}>
+      {isConnected ? (
+        <Wifi className="w-3 h-3 mr-1" />
+      ) : (
+        <WifiOff className="w-3 h-3 mr-1" />
+      )}
+      {isConnected ? 'Conectado a la red' : 'Sin conexión a la red'}
     </div>
   );
 };

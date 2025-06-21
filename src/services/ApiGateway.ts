@@ -1,6 +1,5 @@
-import axios, { AxiosInstance, AxiosResponse, AxiosError } from 'axios';
+import axios, { AxiosInstance, AxiosResponse, AxiosError, AxiosRequestConfig, AxiosHeaders } from 'axios';
 
-// Configuration interface for API Gateway
 interface ApiConfig {
   baseURL: string;
   timeout: number;
@@ -8,8 +7,7 @@ interface ApiConfig {
   quantumIdPrefix: string;
 }
 
-// Response wrapper for consistent API responses
-interface NeoStockResponse<T = any> {
+interface NeoStockResponse<T = unknown> {
   success: boolean;
   data: T;
   message?: string;
@@ -17,11 +15,10 @@ interface NeoStockResponse<T = any> {
   version: string;
 }
 
-// Error interface for standardized error handling
 interface NeoStockError {
   code: string;
   message: string;
-  details?: any;
+  details?: unknown;
   quantumTrace?: string;
 }
 
@@ -32,7 +29,7 @@ class ApiGateway {
 
   constructor() {
     this.config = {
-      baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000',
+      baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001',
       timeout: 10000,
       retryAttempts: 3,
       quantumIdPrefix: import.meta.env.VITE_QUANTUM_ID_PREFIX || 'QS'
@@ -44,8 +41,7 @@ class ApiGateway {
       headers: {
         'NeoStock-Version': '1.0.0',
         'Content-Type': 'application/json',
-        'X-Quantum-Client': 'NeoStock-Frontend',
-        'X-Cyberpunk-Mode': 'enabled'
+        'X-Quantum-Client': 'NeoStock-Frontend'
       }
     });
 
@@ -53,98 +49,61 @@ class ApiGateway {
   }
 
   private setupInterceptors(): void {
-    // Request interceptor for adding authentication and logging
     this.client.interceptors.request.use(
       (config) => {
-        // Add quantum timestamp to all requests
-        config.headers['X-Quantum-Timestamp'] = Date.now().toString();
-        
-        // Add authentication token if available
+        if (!config.headers) {
+          config.headers = new AxiosHeaders();
+        } else if (!(config.headers instanceof AxiosHeaders)) {
+          config.headers = AxiosHeaders.from(config.headers);
+        }
+
+        config.headers.set('X-Quantum-Timestamp', Date.now().toString());
         const token = this.getAuthToken();
         if (token) {
-          config.headers['Authorization'] = `Bearer ${token}`;
+          config.headers.set('Authorization', `Bearer ${token}`);
         }
-
-        // Log request in debug mode
-        if (import.meta.env.VITE_DEBUG_MODE === 'true') {
-          console.log('🚀 NeoStock API Request:', {
-            method: config.method?.toUpperCase(),
-            url: config.url,
-            data: config.data
-          });
-        }
-
         return config;
       },
       (error) => {
-        console.error('🚨 Request Error:', error);
-        return Promise.reject(error);
+        return Promise.reject(this.transformError(error));
       }
     );
 
-    // Response interceptor for error handling and data transformation
     this.client.interceptors.response.use(
-      (response: AxiosResponse): AxiosResponse<NeoStockResponse> => {
-        // Transform response to NeoStock format
-        const transformedResponse: NeoStockResponse = {
-          success: true,
-          data: response.data,
-          quantumTimestamp: Date.now(),
-          version: '1.0.0'
-        };
-
-        if (import.meta.env.VITE_DEBUG_MODE === 'true') {
-          console.log('✅ NeoStock API Response:', {
-            status: response.status,
-            url: response.config.url,
-            data: transformedResponse
-          });
-        }
-
-        return {
-          ...response,
-          data: transformedResponse
-        };
+      (response: AxiosResponse<NeoStockResponse>): AxiosResponse<NeoStockResponse> => {
+        return response; 
       },
       async (error: AxiosError) => {
-        const requestId = error.config?.url || 'unknown';
-        const currentRetries = this.retryCount.get(requestId) || 0;
-
-        // Retry logic for network errors
-        if (this.shouldRetry(error) && currentRetries < this.config.retryAttempts) {
-          this.retryCount.set(requestId, currentRetries + 1);
-          
-          console.warn(`🔄 Retrying request (${currentRetries + 1}/${this.config.retryAttempts}):`, requestId);
-          
-          // Exponential backoff
-          await this.delay(Math.pow(2, currentRetries) * 1000);
-          
-          return this.client.request(error.config!);
-        }
-
-        // Clear retry count after max attempts
-        this.retryCount.delete(requestId);
-
-        // Transform error to NeoStock format
-        const neoStockError: NeoStockError = {
-          code: error.code || 'UNKNOWN_ERROR',
-          message: error.message || 'An unknown error occurred',
-          details: error.response?.data,
-          quantumTrace: `QT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-        };
-
-        console.error('🚨 NeoStock API Error:', neoStockError);
-
-        // Show user-friendly error notification
-        this.handleErrorNotification(neoStockError);
-
-        return Promise.reject(neoStockError);
+        return Promise.reject(this.transformError(error));
       }
     );
   }
 
+  private transformError(error: AxiosError): NeoStockError {
+    const requestId = error.config?.url || 'unknown';
+    const currentRetries = this.retryCount.get(requestId) || 0;
+
+    if (this.shouldRetry(error) && currentRetries < this.config.retryAttempts) {
+      this.retryCount.set(requestId, currentRetries + 1);
+      return {
+        code: 'RETRYING',
+        message: `Retrying request (${currentRetries + 1}/${this.config.retryAttempts})`
+      };
+    }
+
+    this.retryCount.delete(requestId);
+
+    const neoStockError: NeoStockError = {
+      code: error.code || 'UNKNOWN_ERROR',
+      message: error.message || 'An unknown error occurred',
+      details: error.response?.data, 
+      quantumTrace: `QT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    };
+
+    return neoStockError;
+  }
+
   private shouldRetry(error: AxiosError): boolean {
-    // Retry on network errors or 5xx server errors
     return !error.response || (error.response.status >= 500 && error.response.status < 600);
   }
 
@@ -153,80 +112,54 @@ class ApiGateway {
   }
 
   private getAuthToken(): string | null {
-    // Get token from localStorage or secure storage
-    return localStorage.getItem('neostock_auth_token');
+    return localStorage.getItem('authToken'); 
   }
 
-  private handleErrorNotification(error: NeoStockError): void {
-    // This would integrate with your notification system
-    // For now, we'll use console.error, but you can replace with toast notifications
-    const userMessage = this.getUserFriendlyErrorMessage(error.code);
-    console.error(`🔴 ${userMessage}`);
-  }
-
-  private getUserFriendlyErrorMessage(errorCode: string): string {
-    const errorMessages: Record<string, string> = {
-      'NETWORK_ERROR': 'Connection to NeoStock servers lost. Retrying...',
-      'UNAUTHORIZED': 'Neural authentication required. Please verify your identity.',
-      'FORBIDDEN': 'Access denied. Insufficient quantum clearance level.',
-      'NOT_FOUND': 'Requested data not found in the quantum database.',
-      'TIMEOUT': 'Request timeout. NeoStock servers may be under heavy load.',
-      'SERVER_ERROR': 'Internal server malfunction. Engineering team notified.'
-    };
-
-    return errorMessages[errorCode] || 'An unexpected error occurred in the NeoStock system.';
-  }
-
-  // Public methods for making API calls
-  public async get<T = any>(url: string, config?: any): Promise<NeoStockResponse<T>> {
-    const response = await this.client.get(url, config);
+  // Métodos de API públicos
+  public async get<T>(url: string, config?: AxiosRequestConfig<unknown>): Promise<NeoStockResponse<T>> {
+    const response = await this.client.get<NeoStockResponse<T>>(url, config);
     return response.data;
   }
 
-  public async post<T = any>(url: string, data?: any, config?: any): Promise<NeoStockResponse<T>> {
-    const response = await this.client.post(url, data, config);
+  public async post<T>(url: string, data?: unknown, config?: AxiosRequestConfig<unknown>): Promise<NeoStockResponse<T>> {
+    const response = await this.client.post<NeoStockResponse<T>>(url, data, config);
     return response.data;
   }
 
-  public async put<T = any>(url: string, data?: any, config?: any): Promise<NeoStockResponse<T>> {
-    const response = await this.client.put(url, data, config);
+  public async put<T>(url: string, data?: unknown, config?: AxiosRequestConfig<unknown>): Promise<NeoStockResponse<T>> {
+    const response = await this.client.put<NeoStockResponse<T>>(url, data, config);
     return response.data;
   }
 
-  public async delete<T = any>(url: string, config?: any): Promise<NeoStockResponse<T>> {
-    const response = await this.client.delete(url, config);
+  public async delete<T>(url: string, config?: AxiosRequestConfig<unknown>): Promise<NeoStockResponse<T>> {
+    const response = await this.client.delete<NeoStockResponse<T>>(url, config);
     return response.data;
   }
 
-  public async patch<T = any>(url: string, data?: any, config?: any): Promise<NeoStockResponse<T>> {
-    const response = await this.client.patch(url, data, config);
-    return response.data;
-  }
-
-  // Utility methods
   public generateQuantumId(): string {
     const timestamp = Date.now().toString(36);
     const random = Math.random().toString(36).substr(2, 9);
     return `${this.config.quantumIdPrefix}-${timestamp}-${random}`.toUpperCase();
   }
 
-  public isOnline(): boolean {
-    return navigator.onLine;
-  }
-
-  public getConnectionStatus(): 'online' | 'offline' | 'unstable' {
-    if (!navigator.onLine) return 'offline';
-    
-    // Check if we have recent successful requests
-    const lastSuccessfulRequest = localStorage.getItem('neostock_last_success');
-    if (lastSuccessfulRequest) {
-      const timeDiff = Date.now() - parseInt(lastSuccessfulRequest);
-      if (timeDiff > 30000) return 'unstable'; // 30 seconds threshold
+  /**
+   * Verifica el estado de conexión con el backend haciendo una petición GET a un endpoint de salud.
+   * Se asume que el backend tiene un endpoint /status o /health que responde.
+   * @returns Una promesa que resuelve a `true` si la conexión es exitosa, `false` en caso contrario.
+   */
+  public async getConnectionStatus(): Promise<boolean> {
+    try {
+      // Intenta hacer una petición a un endpoint simple de tu backend.
+      // Puedes cambiar '/status' a '/health' o cualquier otro endpoint que tu backend exponga para este propósito.
+      const response = await this.client.get('/status'); 
+      // Si recibimos una respuesta exitosa (código 2xx), consideramos que hay conexión.
+      return response.status >= 200 && response.status < 300;
+    } catch (error) {
+      // Cualquier error (red, 4xx, 5xx) significa que no hay conexión o no es exitosa.
+      console.error('Error checking backend connection status:', error);
+      return false;
     }
-    
-    return 'online';
   }
 }
 
-// Export singleton instance
 export default new ApiGateway();

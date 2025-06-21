@@ -1,208 +1,194 @@
+// C:\Users\pedro\Desktop\project\src\App.tsx
+
 import React, { useState, useEffect } from 'react';
-import { QueryClient, QueryClientProvider } from 'react-query';
-import Sidebar from './components/Sidebar';
-import Dashboard from './components/Dashboard';
-import InventoryTable from './components/InventoryTable';
-import Analytics from './components/Analytics';
-import Alerts from './components/Alerts';
-import Settings from './components/Settings';
-import ConnectionStatus from './components/ConnectionStatus';
-import RegisterForm from './components/auth/RegisterForm'; 
+import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
+import RegisterForm from './components/auth/RegisterForm';
 import LoginForm from './components/auth/LoginForm';
+import Dashboard from './pages/Dashboard';
+import InventoryPage from './pages/InventoryPage';
+import ProductDetails from './pages/ProductDetails';
+import AnalyticsPage from './pages/AnalyticsPage'; 
+// CAMBIO CRÍTICO AQUÍ: Usamos un alias para forzar la re-evaluación del módulo
+import AlertsPage_Component from './pages/AlertsPage'; // <-- Importa la nueva página de alertas con alias
+import Header from './components/layout/Header'; 
+import Footer from './components/layout/Footer';
+import ConnectionStatus from './components/ConnectionStatus';
+import { User } from './types/index'; 
 
-// Definir la interfaz para el objeto User
-interface User {
-  id: number;
-  name: string;
-  email: string;
-  createdAt: string;
+interface PrivateRouteProps {
+  isAuthenticated: boolean;
+  children: React.ReactNode;
 }
 
-// Definir las props para los componentes
-interface AppProps {}
-interface SectionComponentsProps {
-  user: User | null;
-  onLogout?: () => void;
-}
+const PrivateRoute: React.FC<PrivateRouteProps> = ({ isAuthenticated, children }) => {
+  if (!isAuthenticated) {
+    console.log("PrivateRoute: Usuario NO autenticado, redirigiendo a /login");
+    return <Navigate to="/login" replace />;
+  }
+  console.log("PrivateRoute: Usuario autenticado, mostrando contenido protegido");
+  return <>{children}</>;
+};
 
-// Create a client for React Query
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 3,
-      staleTime: 30000,
-      cacheTime: 300000,
-    },
-  },
-});
+const App: React.FC = () => {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const navigate = useNavigate();
+  const location = useLocation();
 
-function App() {
-  const [activeSection, setActiveSection] = useState('dashboard');
-  const [user, setUser] = useState<User | null>(null);
-  const [showAuth, setShowAuth] = useState(false);
-  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
-
-  // Verificar si hay usuario en localStorage al cargar
   useEffect(() => {
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
+    console.log("App.tsx useEffect: Verificando estado de autenticación...");
+    const token = localStorage.getItem('authToken');
+    const userJson = localStorage.getItem('user');
+
+    console.log("   authToken desde localStorage:", token ? "EXISTE" : "NO EXISTE");
+    console.log("   userJson desde localStorage:", userJson ? "EXISTE" : "NO EXISTE");
+
+    if (token && userJson) {
       try {
-        const parsedUser: User = JSON.parse(storedUser);
-        setUser(parsedUser);
-      } catch (error) {
-        console.error('Error parsing user data:', error);
+        const user: User = JSON.parse(userJson);
+        setIsAuthenticated(true);
+        setCurrentUser(user);
+        console.log("   Usuario autenticado en useEffect:", user.email, ". Redirigiendo si es necesario.");
+
+        if (location.pathname === '/login' || location.pathname === '/register' || location.pathname === '/') {
+          console.log("   Redirigiendo a /dashboard desde useEffect...");
+          navigate('/dashboard');
+        } else {
+          console.log("   Ya en una ruta protegida o no es necesario redirigir desde useEffect.");
+        }
+      } catch (e) {
+        console.error("Error App.tsx: Error al parsear el usuario de localStorage", e);
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('user');
+        setIsAuthenticated(false);
+        setCurrentUser(null);
+        console.log("   Local Storage limpiado. Usuario NO autenticado.");
+      }
+    } else {
+      setIsAuthenticated(false);
+      setCurrentUser(null);
+      console.log("   Usuario NO autenticado. Redirigiendo a /login si es necesario.");
+      if (location.pathname !== '/login' && location.pathname !== '/register') {
+        console.log("   Redirigiendo a /login desde useEffect...");
+        navigate('/login');
+      } else {
+        console.log("   Ya en /login o /register, no es necesario redirigir desde useEffect.");
       }
     }
-  }, []);
+  }, [navigate, location.pathname]);
 
-  const renderActiveSection = () => {
-    // Props para los componentes de sección
-    const sectionProps: SectionComponentsProps = {
-      user: user
-    };
-
-    // Si no hay usuario autenticado, mostrar formularios de autenticación
-    if (!user && showAuth) {
-      return (
-        <div className="max-w-md mx-auto py-8">
-          <div className="flex mb-6 border-b border-slate-700">
-            <button
-              className={`px-4 py-2 font-medium ${authMode === 'login' ? 'text-cyan-400 border-b-2 border-cyan-400' : 'text-gray-400'}`}
-              onClick={() => setAuthMode('login')}
-            >
-              Iniciar Sesión
-            </button>
-            <button
-              className={`px-4 py-2 font-medium ${authMode === 'register' ? 'text-cyan-400 border-b-2 border-cyan-400' : 'text-gray-400'}`}
-              onClick={() => setAuthMode('register')}
-            >
-              Registrarse
-            </button>
-          </div>
-          
-          {authMode === 'login' ? 
-            <LoginForm onSuccess={handleAuthSuccess} /> : 
-            <RegisterForm onSuccess={handleAuthSuccess} />
-          }
-        </div>
-      );
-    }
-
-    // Si hay usuario autenticado, mostrar la sección correspondiente
-    switch (activeSection) {
-      case 'dashboard':
-        return <Dashboard {...sectionProps} />;
-      case 'inventory':
-        return <InventoryTable {...sectionProps} />;
-      case 'analytics':
-        return <Analytics {...sectionProps} />;
-      case 'alerts':
-        return <Alerts {...sectionProps} />;
-      case 'settings':
-        return <Settings {...sectionProps} onLogout={handleLogout} />;
-      default:
-        return <Dashboard {...sectionProps} />;
+  const handleLoginSuccess = (user: User) => {
+    console.log("App.tsx handleLoginSuccess: Recibido el objeto user:", user);
+    if (user && user.email) {
+      console.log("handleLoginSuccess: Login exitoso para", user.email);
+      setIsAuthenticated(true);
+      setCurrentUser(user);
+      console.log("   Redirigiendo a /dashboard desde handleLoginSuccess...");
+      navigate('/dashboard');
+    } else {
+      console.error("handleLoginSuccess: El objeto user recibido es inválido o no tiene email:", user);
     }
   };
 
-  // Manejar autenticación exitosa
-  const handleAuthSuccess = (userData: User) => {
-    setUser(userData);
-    setShowAuth(false);
-    localStorage.setItem('user', JSON.stringify(userData));
+  const handleRegisterSuccess = (user: User) => {
+    console.log("App.tsx handleRegisterSuccess: Recibido el objeto user:", user);
+    if (user && user.email) {
+      console.log("handleRegisterSuccess: Registro exitoso para", user.email);
+      setIsAuthenticated(true);
+      setCurrentUser(user);
+      console.log("   Redirigiendo a /dashboard desde handleRegisterSuccess...");
+      navigate('/dashboard');
+    } else {
+      console.error("handleRegisterSuccess: El objeto user recibido es inválido o no tiene email:", user);
+    }
   };
 
-  // Manejar cierre de sesión
   const handleLogout = () => {
-    setUser(null);
+    console.log("handleLogout: Cerrando sesión...");
+    localStorage.removeItem('authToken');
     localStorage.removeItem('user');
-    setActiveSection('dashboard');
+    setIsAuthenticated(false);
+    setCurrentUser(null);
+    console.log("   Redirigiendo a /login desde handleLogout...");
+    navigate('/login');
   };
 
-  // Mostrar formularios de autenticación
-  const handleShowAuth = (mode: 'login' | 'register') => {
-    setAuthMode(mode);
-    setShowAuth(true);
-  };
+  console.log("App render: isAuthenticated =", isAuthenticated, ", currentUser =", currentUser?.email);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-        {/* Background Effects */}
-        <div className="fixed inset-0 pointer-events-none">
-          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-cyan-500/5 rounded-full blur-3xl"></div>
-          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-500/5 rounded-full blur-3xl"></div>
-          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-gradient-to-r from-cyan-500/3 to-blue-500/3 rounded-full blur-3xl"></div>
+    <div className="min-h-screen flex flex-col bg-gray-900 text-white">
+      {isAuthenticated && <Header currentUser={currentUser} onLogout={handleLogout} />}
+      
+      <main className="flex-grow container mx-auto px-4 py-8">
+        <div className="flex justify-end mb-4">
+          <ConnectionStatus />
         </div>
-
-        {/* Grid Pattern Overlay */}
-        <div 
-          className="fixed inset-0 pointer-events-none opacity-10"
-          style={{
-            backgroundImage: `
-              linear-gradient(rgba(0, 255, 255, 0.1) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(0, 255, 255, 0.1) 1px, transparent 1px)
-            `,
-            backgroundSize: '50px 50px'
-          }}
-        ></div>
-
-        {/* Connection Status Indicator */}
-        <ConnectionStatus />
-
-        <div className="relative z-10 flex">
-          {/* Sidebar - Solo mostrar si el usuario está autenticado */}
-          {user && (
-            <Sidebar 
-              activeSection={activeSection} 
-              onSectionChange={setActiveSection}
-              user={user}
-            />
-          )}
+        <Routes>
+          <Route path="/login" element={<LoginForm onLoginSuccess={handleLoginSuccess} />} />
+          <Route path="/register" element={<RegisterForm onRegisterSuccess={handleRegisterSuccess} />} />
           
-          <main className={`${user ? 'ml-64' : ''} flex-1 p-8 transition-all duration-300`}>
-            {/* Barra superior con estado de autenticación */}
-            <div className="flex justify-between items-center mb-8">
-              <h1 className="text-2xl font-bold text-cyan-400">
-                Sistema de Inventario
-              </h1>
-              
-              {user ? (
-                <div className="flex items-center space-x-4">
-                  <span className="text-gray-300">Hola, {user.name}</span>
-                  <button 
-                    onClick={() => setActiveSection('settings')}
-                    className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors"
-                  >
-                    Configuración
-                  </button>
-                </div>
-              ) : (
-                <div className="flex space-x-3">
-                  <button 
-                    onClick={() => handleShowAuth('login')}
-                    className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors"
-                  >
-                    Iniciar Sesión
-                  </button>
-                  <button 
-                    onClick={() => handleShowAuth('register')}
-                    className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 rounded-lg transition-colors"
-                  >
-                    Registrarse
-                  </button>
-                </div>
-              )}
+          <Route path="/" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />} />
+
+          <Route
+            path="/dashboard"
+            element={
+              <PrivateRoute isAuthenticated={isAuthenticated}>
+                <Dashboard user={currentUser} />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/inventory"
+            element={
+              <PrivateRoute isAuthenticated={isAuthenticated}>
+                <InventoryPage currentUser={currentUser} />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/inventory/:id"
+            element={
+              <PrivateRoute isAuthenticated={isAuthenticated}>
+                <ProductDetails />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/analytics"
+            element={
+              <PrivateRoute isAuthenticated={isAuthenticated}>
+                <AnalyticsPage />
+              </PrivateRoute>
+            }
+          />
+          {/* CAMBIO CRÍTICO AQUÍ: Usamos el alias para el componente */}
+          <Route
+            path="/alerts"
+            element={
+              <PrivateRoute isAuthenticated={isAuthenticated}>
+                <AlertsPage_Component /> {/* Usamos el componente importado con alias */}
+              </PrivateRoute>
+            }
+          />
+          
+          <Route path="*" element={
+            <div className="text-center py-10">
+              <h1 className="text-3xl font-bold text-white">404 - Página no encontrada</h1>
+              <p className="text-slate-400 mt-2">La ruta que buscas no existe.</p>
+              <button
+                onClick={() => navigate(isAuthenticated ? '/dashboard' : '/login')}
+                className="mt-6 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors duration-200"
+              >
+                Volver al {isAuthenticated ? 'Dashboard' : 'Inicio de Sesión'}
+              </button>
             </div>
-            
-            <div className="max-w-7xl mx-auto">
-              {renderActiveSection()}
-            </div>
-          </main>
-        </div>
-      </div>
-    </QueryClientProvider>
+          } />
+        </Routes>
+      </main>
+
+      {isAuthenticated && <Footer />}
+    </div>
   );
-}
+};
 
 export default App;

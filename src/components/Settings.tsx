@@ -1,18 +1,25 @@
 import React, { useState } from 'react';
 import { 
   Settings as SettingsIcon, 
-  User, 
+  User as UserIcon, 
   Shield, 
   Bell, 
   Monitor,
   Database,
   Wifi,
   Save,
-  RefreshCw
+  RefreshCw,
+  LogOut
 } from 'lucide-react';
+import { User } from '../types'; // Importar la interfaz User
 
-const Settings: React.FC = () => {
-  const [activeTab, setActiveTab] = useState('general');
+interface SettingsProps {
+  user: User | null;
+  onLogout: () => void;
+}
+
+const Settings: React.FC<SettingsProps> = ({ user, onLogout }) => {
+  const [activeTab, setActiveTab] = useState('account');
   const [settings, setSettings] = useState({
     general: {
       companyName: 'NeoTech Industries',
@@ -36,6 +43,7 @@ const Settings: React.FC = () => {
   });
 
   const tabs = [
+    { id: 'account', label: 'Account', icon: UserIcon },
     { id: 'general', label: 'General', icon: SettingsIcon },
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'system', label: 'System', icon: Monitor },
@@ -43,15 +51,75 @@ const Settings: React.FC = () => {
     { id: 'database', label: 'Database', icon: Database }
   ];
 
-  const handleSettingChange = (category: string, key: string, value: any) => {
-    setSettings(prev => ({
-      ...prev,
-      [category]: {
-        ...prev[category as keyof typeof prev],
-        [key]: value
-      }
-    }));
-  };
+  const handleSettingChange = (
+  category: string, 
+  key: string, 
+  value: string | boolean | number  // Tipos específicos en lugar de any
+) => {
+  setSettings(prev => ({
+    ...prev,
+    [category]: {
+      ...prev[category as keyof typeof prev],
+      [key]: value
+    }
+  }));
+};
+
+  const renderAccountSettings = () => (
+    <div className="space-y-6">
+      {user ? (
+        <>
+          <div className="bg-slate-800/30 rounded-xl border border-cyan-500/30 p-6">
+            <div className="flex items-center gap-4 mb-6">
+              <div className="bg-cyan-500/20 w-16 h-16 rounded-full flex items-center justify-center border border-cyan-500/30">
+                <UserIcon className="w-8 h-8 text-cyan-400" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-white">{user.nombre}</h3>
+                <p className="text-slate-400">{user.email}</p>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-4 bg-slate-800/50 rounded-lg">
+                <p className="text-slate-400 text-sm">User ID</p>
+                <p className="text-white font-mono">{user.id}</p>
+              </div>
+              
+              <div className="p-4 bg-slate-800/50 rounded-lg">
+                <p className="text-slate-400 text-sm">Member Since</p>
+                <p className="text-white">
+                  {new Date(user.createdAt).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                  })}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end">
+            <button
+              onClick={onLogout}
+              className="flex items-center gap-2 px-4 py-2.5 bg-red-600 hover:bg-red-700 rounded-lg text-white font-medium transition-colors duration-200"
+            >
+              <LogOut className="w-5 h-5" />
+              Sign Out
+            </button>
+          </div>
+        </>
+      ) : (
+        <div className="text-center py-8">
+          <div className="bg-slate-800/30 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4 border border-slate-700/50">
+            <UserIcon className="w-8 h-8 text-slate-500" />
+          </div>
+          <h3 className="text-xl text-slate-300 mb-2">No User Information</h3>
+          <p className="text-slate-500">Please sign in to view account details</p>
+        </div>
+      )}
+    </div>
+  );
 
   const renderGeneralSettings = () => (
     <div className="space-y-6">
@@ -223,6 +291,7 @@ const Settings: React.FC = () => {
         {/* Settings Content */}
         <div className="lg:col-span-3">
           <div className="bg-slate-800/30 rounded-xl border border-slate-700/50 backdrop-blur-sm p-8">
+            {activeTab === 'account' && renderAccountSettings()}
             {activeTab === 'general' && renderGeneralSettings()}
             {activeTab === 'notifications' && renderNotificationSettings()}
             {activeTab === 'system' && renderSystemSettings()}
@@ -278,18 +347,20 @@ const Settings: React.FC = () => {
               </div>
             )}
 
-            {/* Save Button */}
-            <div className="mt-8 pt-6 border-t border-slate-700/50">
-              <div className="flex items-center justify-between">
-                <p className="text-slate-400 text-sm">
-                  Changes are saved automatically
-                </p>
-                <button className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-all duration-300 flex items-center gap-2">
-                  <Save className="w-5 h-5" />
-                  Save Changes
-                </button>
+            {/* Save Button - Solo mostrar en pestañas que no sean Account */}
+            {activeTab !== 'account' && (
+              <div className="mt-8 pt-6 border-t border-slate-700/50">
+                <div className="flex items-center justify-between">
+                  <p className="text-slate-400 text-sm">
+                    Changes are saved automatically
+                  </p>
+                  <button className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-all duration-300 flex items-center gap-2">
+                    <Save className="w-5 h-5" />
+                    Save Changes
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>

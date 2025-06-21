@@ -1,3 +1,5 @@
+// C:\Users\pedro\Desktop\project\src\pages\Dashboard.tsx
+
 import React from 'react';
 import { 
   TrendingUp, 
@@ -5,12 +7,19 @@ import {
   Package, 
   AlertTriangle,
   Activity,
-  Eye
+  Eye,
+  Loader2 
 } from 'lucide-react';
-import { getMockDashboardData } from '../data/mockData';
+import { useInventoryAnalytics } from '../hooks/useInventory'; 
+import { User, Product, InventoryStats } from '../types/index'; // <-- CAMBIO AQUÍ
+import { mockProducts } from '../data/mockData'; 
 
-const Dashboard: React.FC = () => {
-  const data = getMockDashboardData();
+interface DashboardProps {
+  user: User | null;
+}
+
+const Dashboard: React.FC<DashboardProps> = ({ user }) => {
+  const { data: statsData, isLoading, error } = useInventoryAnalytics('30d'); 
 
   const StatCard = ({ 
     title, 
@@ -23,7 +32,7 @@ const Dashboard: React.FC = () => {
     title: string;
     value: string | number;
     change?: string;
-    icon: any;
+    icon: React.ElementType;
     trend?: 'up' | 'down';
     color?: 'cyan' | 'emerald' | 'amber' | 'red';
   }) => {
@@ -84,13 +93,49 @@ const Dashboard: React.FC = () => {
     return new Date(dateString).toLocaleString();
   };
 
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center h-full text-white min-h-[calc(100vh-200px)]">
+        <Loader2 className="w-8 h-8 animate-spin mr-2" /> Cargando datos del dashboard...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center text-red-400 min-h-[calc(100vh-200px)] flex flex-col items-center justify-center">
+        <AlertTriangle className="w-16 h-16 mb-4" />
+        <p className="text-xl font-bold">Error al cargar los datos del dashboard</p>
+        <p className="mt-2 text-md">Detalle: {error instanceof Error ? error.message : String(error)}</p>
+        <p className="mt-4 text-sm text-slate-500">Asegúrate de que tu backend esté funcionando y el endpoint de analíticas (`/inventory/analytics`) esté correctamente implementado y accesible.</p>
+      </div>
+    );
+  }
+
+  const currentStatsData: InventoryStats = statsData || { 
+    totalProducts: 0, 
+    totalValue: 0, 
+    lowStockItems: 0, 
+    outOfStockItems: 0, 
+    categories: {}, 
+    totalItems: 0 
+  };
+
   return (
     <div className="space-y-8">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-white">Command Center</h1>
           <p className="text-slate-400 mt-1">Real-time inventory overview and system status</p>
+          
+          {user && (
+            <div className="mt-3 flex items-center gap-2">
+              <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
+              <span className="text-green-400 text-sm">
+                Sesión activa: {user.nombre} ({user.email})
+              </span>
+            </div>
+          )}
         </div>
         <div className="bg-slate-800/50 rounded-lg px-4 py-2 border border-cyan-500/20">
           <div className="flex items-center gap-2">
@@ -100,42 +145,39 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
           title="Total Products"
-          value={data.stats.totalProducts}
-          change="+12%"
+          value={currentStatsData.totalProducts} 
+          change="+12%" 
           icon={Package}
           color="cyan"
         />
         <StatCard
           title="Total Value"
-          value={formatCurrency(data.stats.totalValue)}
-          change="+8.2%"
+          value={formatCurrency(currentStatsData.totalValue)} 
+          change="+8.2%" 
           icon={TrendingUp}
           color="emerald"
         />
         <StatCard
           title="Low Stock Alerts"
-          value={data.stats.lowStockItems}
-          change="-3"
+          value={currentStatsData.lowStockItems} 
+          change="-3" 
           icon={AlertTriangle}
           trend="down"
           color="amber"
         />
         <StatCard
           title="Out of Stock"
-          value={data.stats.outOfStockItems}
-          change="+1"
+          value={currentStatsData.outOfStockItems} 
+          change="+1" 
           icon={TrendingDown}
           color="red"
         />
       </div>
 
-      {/* Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Recent Activity */}
         <div className="lg:col-span-2">
           <div className="bg-slate-800/30 rounded-xl border border-slate-700/50 backdrop-blur-sm">
             <div className="p-6 border-b border-slate-700/50">
@@ -146,15 +188,15 @@ const Dashboard: React.FC = () => {
             </div>
             <div className="p-6">
               <div className="space-y-4">
-                {data.recentActivity.map((activity) => (
-                  <div key={activity.id} className="flex items-start gap-4 p-4 rounded-lg bg-slate-700/20 hover:bg-slate-700/30 transition-colors duration-200">
+                {mockProducts && mockProducts.slice(0, 3).map((product: Product, index: number) => ( 
+                  <div key={product.id} className="flex items-start gap-4 p-4 rounded-lg bg-slate-700/20 hover:bg-slate-700/30 transition-colors duration-200">
                     <div className="flex-shrink-0 p-2 rounded-full bg-slate-700/50">
-                      {getActivityIcon(activity.type)}
+                      {getActivityIcon('updated')} 
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-white font-medium">{activity.productName}</p>
-                      <p className="text-slate-400 text-sm mt-1">{activity.details}</p>
-                      <p className="text-slate-500 text-xs mt-2">{formatDate(activity.timestamp)}</p>
+                      <p className="text-white font-medium">{product.name}</p>
+                      <p className="text-slate-400 text-sm mt-1">Stock updated to {product.quantity} units</p>
+                      {product.lastUpdated && <p className="text-slate-500 text-xs mt-2">{formatDate(product.lastUpdated)}</p>} {/* Condicional por si lastUpdated es undefined */}
                     </div>
                   </div>
                 ))}
@@ -163,15 +205,14 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Category Breakdown */}
         <div className="bg-slate-800/30 rounded-xl border border-slate-700/50 backdrop-blur-sm">
           <div className="p-6 border-b border-slate-700/50">
             <h2 className="text-xl font-semibold text-white">Category Distribution</h2>
           </div>
           <div className="p-6">
             <div className="space-y-4">
-              {Object.entries(data.stats.categories).map(([category, count]) => {
-                const percentage = (count / data.stats.totalProducts) * 100;
+              {Object.entries(currentStatsData.categories || {}).map(([category, count]) => { 
+                const percentage = (count / (currentStatsData.totalProducts || 1)) * 100; 
                 return (
                   <div key={category} className="space-y-2">
                     <div className="flex justify-between text-sm">

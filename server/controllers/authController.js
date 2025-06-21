@@ -1,3 +1,5 @@
+// C:\Users\pedro\Desktop\project\server\controllers\authController.js
+
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
@@ -5,56 +7,65 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+// Función de utilidad para generar una respuesta consistente de la API
+const buildApiResponse = (success, data, message = '', version = '1.0.0') => {
+  return {
+    success,
+    data,
+    message,
+    quantumTimestamp: Date.now(),
+    version,
+  };
+};
+
 // Función de registro
 export const register = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { nombre, email, password } = req.body;
     
-    // Validar campos requeridos
-    if (!name || !email || !password) {
-      return res.status(400).json({ message: 'Todos los campos son requeridos' });
+    if (!nombre || !email || !password) {
+      return res.status(400).json(buildApiResponse(false, null, 'Todos los campos son requeridos'));
     }
 
-    // Verificar si el usuario ya existe
     const existingUser = await User.findOne({ where: { email } });
     if (existingUser) {
-      return res.status(400).json({ message: 'El usuario ya existe' });
+      return res.status(400).json(buildApiResponse(false, null, 'El email ya está registrado'));
     }
 
-    // Encriptar contraseña
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Crear nuevo usuario
     const newUser = await User.create({
-      name,
+      nombre, 
       email,
       password: hashedPassword
     });
 
-    // Crear token JWT
+    if (!process.env.JWT_SECRET) {
+      console.error('Error: JWT_SECRET no está definido en las variables de entorno.');
+      return res.status(500).json(buildApiResponse(false, null, 'Error de configuración del servidor.'));
+    }
+
     const token = jwt.sign(
       { id: newUser.id, email: newUser.email },
       process.env.JWT_SECRET,
       { expiresIn: '1h' }
     );
 
-    // Responder sin la contraseña
     const userResponse = {
       id: newUser.id,
-      name: newUser.name,
+      nombre: newUser.nombre,
       email: newUser.email,
-      createdAt: newUser.createdAt
+      createdAt: newUser.createdAt,
     };
 
-    res.status(201).json({ 
-      message: 'Usuario registrado correctamente',
-      user: userResponse,
-      token
-    });
+    // Log de la respuesta completa ANTES de enviarla
+    console.log('✅ Registro exitoso. Respondiendo con:', { user: userResponse, token });
+    res.status(201).json(buildApiResponse(true, { user: userResponse, token }, 'Usuario registrado correctamente'));
   } catch (error) {
-    console.error('Error en registro:', error);
-    res.status(500).json({ message: 'Error en el servidor' });
+    console.error('❌ Error en registro del backend (DETALLE):', error);
+    const errorMessage = error.message || 'Error interno del servidor durante el registro';
+    res.status(500).json(buildApiResponse(false, null, errorMessage));
   }
 };
 
@@ -63,45 +74,44 @@ export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
     
-    // Validar campos
     if (!email || !password) {
-      return res.status(400).json({ message: 'Email y contraseña son requeridos' });
+      return res.status(400).json(buildApiResponse(false, null, 'Email y contraseña son requeridos'));
     }
 
-    // Buscar usuario
     const user = await User.findOne({ where: { email } });
     if (!user) {
-      return res.status(401).json({ message: 'Credenciales inválidas' });
+      return res.status(401).json(buildApiResponse(false, null, 'Credenciales inválidas'));
     }
 
-    // Verificar contraseña
     const validPassword = await bcrypt.compare(password, user.password);
     if (!validPassword) {
-      return res.status(401).json({ message: 'Credenciales inválidas' });
+      return res.status(401).json(buildApiResponse(false, null, 'Credenciales inválidas'));
     }
 
-    // Crear token JWT
+    if (!process.env.JWT_SECRET) {
+      console.error('Error: JWT_SECRET no está definido en las variables de entorno.');
+      return res.status(500).json(buildApiResponse(false, null, 'Error de configuración del servidor.'));
+    }
+
     const token = jwt.sign(
       { id: user.id, email: user.email },
       process.env.JWT_SECRET,
       { expiresIn: '1h' }
     );
 
-    // Responder sin la contraseña
     const userResponse = {
       id: user.id,
-      name: user.name,
+      nombre: user.nombre,
       email: user.email,
-      createdAt: user.createdAt
+      createdAt: user.createdAt,
     };
 
-    res.json({ 
-      message: 'Inicio de sesión exitoso',
-      user: userResponse,
-      token
-    });
+    // Log de la respuesta completa ANTES de enviarla
+    console.log('✅ Login exitoso. Respondiendo con:', { user: userResponse, token });
+    res.json(buildApiResponse(true, { user: userResponse, token }, 'Inicio de sesión exitoso'));
   } catch (error) {
-    console.error('Error en login:', error);
-    res.status(500).json({ message: 'Error en el servidor' });
+    console.error('❌ Error en login del backend (DETALLE):', error);
+    const errorMessage = error.message || 'Error interno del servidor durante el inicio de sesión';
+    res.status(500).json(buildApiResponse(false, null, errorMessage));
   }
 };

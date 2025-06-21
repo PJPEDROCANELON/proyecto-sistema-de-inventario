@@ -1,37 +1,35 @@
+// C:\Users\pedro\Desktop\project\server\models\User.js
+
 import { DataTypes } from 'sequelize';
-import sequelize from '../config/database.js';
+import { sequelize } from '../config/database.js'; // <-- Importa sequelize
 
 const User = sequelize.define('User', {
-  name: {
+  id: {
+    type: DataTypes.INTEGER,
+    autoIncrement: true,
+    primaryKey: true,
+  },
+  nombre: {
     type: DataTypes.STRING,
-    allowNull: false
+    allowNull: false,
   },
   email: {
     type: DataTypes.STRING,
-    unique: true,
     allowNull: false,
+    unique: true,
     validate: {
-      isEmail: true
+      isEmail: true,
     }
   },
   password: {
     type: DataTypes.STRING,
-    allowNull: false
-  }
+    allowNull: false,
+  },
 }, {
   timestamps: true,
-  createdAt: 'createdAt',
-  updatedAt: 'updatedAt'
+  tableName: 'users',
 });
 
-// Sincronizar el modelo con la base de datos
-(async () => {
-  try {
-    await User.sync();
-    console.log('✅ Modelo de Usuario sincronizado con la base de datos');
-  } catch (error) {
-    console.error('❌ Error al sincronizar modelo de Usuario:', error);
-  }
-})();
+// ¡IMPORTANTE! Las asociaciones se definirán en un archivo separado (associations.js)
 
 export default User;

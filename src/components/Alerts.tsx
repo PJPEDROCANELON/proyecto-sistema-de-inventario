@@ -7,9 +7,24 @@ import {
   Shield,
   Zap
 } from 'lucide-react';
+import { User } from '../types';
 
-const Alerts: React.FC = () => {
-  const alerts = [
+interface AlertProps {
+  id: string;
+  type: string;
+  title: string;
+  description: string;
+  timestamp: string;
+  location: string;
+  priority: string;
+}
+
+interface AlertsProps {
+  user: User | null;
+}
+
+const Alerts: React.FC<AlertsProps> = ({ user }) => {
+  const alerts: AlertProps[] = [
     {
       id: '1',
       type: 'critical',
@@ -114,19 +129,28 @@ const Alerts: React.FC = () => {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white">Alert Center</h1>
           <p className="text-slate-400 mt-1">Monitor system alerts and notifications</p>
+          
+          {/* Mensaje de usuario */}
+          {user && (
+            <p className="text-slate-300 mt-2 flex items-center">
+              <span className="bg-red-500/10 text-red-400 border border-red-500/20 px-2 py-1 rounded-md text-sm">
+                Alertas para: {user.nombre}
+              </span>
+            </p>
+          )}
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
           <div className="bg-slate-800/50 rounded-lg px-4 py-2 border border-cyan-500/20">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 bg-red-400 rounded-full animate-pulse"></div>
               <span className="text-red-400 text-sm font-medium">{criticalAlerts.length} Critical</span>
             </div>
           </div>
-          <button className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-all duration-300">
+          <button className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white px-6 py-2.5 rounded-lg font-medium transition-all duration-300">
             Mark All Read
           </button>
         </div>
