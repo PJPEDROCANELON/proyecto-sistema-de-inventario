@@ -1,239 +1,392 @@
 // C:\Users\pedro\Desktop\project\src\pages\Dashboard.tsx
 
-import React from 'react';
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  Package, 
+import React, { useState, useEffect, useMemo, useCallback } from 'react'; 
+import { useQuery } from '@tanstack/react-query';
+import inventoryService from '../api/inventoryService';
+import exchangeRateService from '../api/exchangeRateService'; 
+import { toast } from 'react-toastify';
+import { format } from 'date-fns';
+import {
+  Package,
   AlertTriangle,
-  Activity,
-  Eye,
-  Loader2 
+  ShoppingCart,
+  DollarSign, 
+  TrendingUp,
+  Layers,
+  BarChart2,
+  List,
+  Loader2, 
+  Database,
+  Server,
+  CheckCircle,
+  XCircle
 } from 'lucide-react';
-import { useInventoryAnalytics } from '../hooks/useInventory'; 
-import { User, Product, InventoryStats } from '../types/index'; // <-- CAMBIO AQUÍ
-import { mockProducts } from '../data/mockData'; 
+import { User, InventoryStats, InventoryAlert, TopProductValue, ExchangeRate } from '../types'; 
+import DoughnutChart from '../components/charts/DoughnutChart';
+import BarChart from '../components/charts/BarChart';
+import AlertCard from '../components/AlertCard';
 
 interface DashboardProps {
   user: User | null;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ user }) => {
-  const { data: statsData, isLoading, error } = useInventoryAnalytics('30d'); 
+  const [lastUpdate, setLastUpdate] = useState<string | null>(null);
 
-  const StatCard = ({ 
-    title, 
-    value, 
-    change, 
-    icon: Icon, 
-    trend = 'up',
-    color = 'cyan'
-  }: {
-    title: string;
-    value: string | number;
-    change?: string;
-    icon: React.ElementType;
-    trend?: 'up' | 'down';
-    color?: 'cyan' | 'emerald' | 'amber' | 'red';
-  }) => {
-    const colorClasses = {
-      cyan: 'from-cyan-500/20 to-blue-600/20 border-cyan-500/30 text-cyan-400',
-      emerald: 'from-emerald-500/20 to-green-600/20 border-emerald-500/30 text-emerald-400',
-      amber: 'from-amber-500/20 to-orange-600/20 border-amber-500/30 text-amber-400',
-      red: 'from-red-500/20 to-rose-600/20 border-red-500/30 text-red-400'
-    };
+  const userCurrencySymbol = user?.defaultCurrencySymbol || '$';
 
-    return (
-      <div className={`relative p-6 rounded-xl bg-gradient-to-br ${colorClasses[color]} border backdrop-blur-sm hover:scale-105 transition-all duration-300 group`}>
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-slate-300 text-sm font-medium">{title}</p>
-            <p className="text-2xl font-bold text-white mt-2">{value}</p>
-            {change && (
-              <div className="flex items-center gap-1 mt-2">
-                {trend === 'up' ? (
-                  <TrendingUp className="w-4 h-4 text-emerald-400" />
-                ) : (
-                  <TrendingDown className="w-4 h-4 text-red-400" />
-                )}
-                <span className={`text-sm ${trend === 'up' ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {change}
-                </span>
-              </div>
-            )}
-          </div>
-          <div className={`p-3 rounded-lg bg-gradient-to-br ${colorClasses[color]} group-hover:scale-110 transition-transform duration-300`}>
-            <Icon className="w-6 h-6" />
-          </div>
-        </div>
-        <div className={`absolute inset-0 rounded-xl bg-gradient-to-br ${colorClasses[color]} opacity-0 group-hover:opacity-20 transition-opacity duration-300`}></div>
-      </div>
-    );
-  };
+  // CAMBIO CLAVE EN useQuery: Asegurar que queryFn devuelva el tipo correcto
+  const {
+    data: latestExchangeRate,
+    isLoading: isLoadingExchangeRate,
+    error: exchangeRateError,
+  } = useQuery<ExchangeRate | null, Error>({
+    queryKey: ['latestExchangeRate', 'USD', 'Bs'],
+    queryFn: async (): Promise<ExchangeRate | null> => { // Tipado explícito del retorno de la función
+      const res = await exchangeRateService.getLatestExchangeRate('USD', 'Bs');
+      // Aseguramos que res.data sea ExchangeRate o null
+      return res.success && res.data ? res.data : null; 
+    },
+    staleTime: 10 * 60 * 1000, 
+    refetchOnWindowFocus: false,
+  });
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0
-    }).format(value);
-  };
+  const {
+    data: stats,
+    isLoading: isLoadingStats,
+    error: statsError,
+  } = useQuery<InventoryStats, Error>({
+    queryKey: ['inventoryAnalytics'],
+    queryFn: inventoryService.getInventoryAnalytics,
+    staleTime: 5 * 60 * 1000, 
+    refetchOnWindowFocus: false, 
+  });
 
-  const getActivityIcon = (type: string) => {
-    switch (type) {
-      case 'added': return <Package className="w-4 h-4 text-emerald-400" />;
-      case 'updated': return <Activity className="w-4 h-4 text-cyan-400" />;
-      case 'removed': return <TrendingDown className="w-4 h-4 text-red-400" />;
-      case 'restocked': return <TrendingUp className="w-4 h-4 text-emerald-400" />;
-      default: return <Eye className="w-4 h-4 text-slate-400" />;
+  const {
+    data: alerts,
+    isLoading: isLoadingAlerts,
+    error: alertsError,
+  } = useQuery<InventoryAlert[], Error>({
+    queryKey: ['inventoryAlerts'],
+    queryFn: inventoryService.getInventoryAlerts,
+    staleTime: 60 * 1000, 
+    refetchOnWindowFocus: true, 
+  });
+
+  useEffect(() => {
+    if (stats) {
+      setLastUpdate(format(new Date(), 'dd MMM, HH:mm'));
     }
-  };
+  }, [stats]);
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString();
-  };
+  useEffect(() => {
+    if (statsError) {
+      console.error('Error al cargar datos del dashboard:', statsError);
+      toast.error(`Error al cargar los datos del dashboard. Detalle: ${statsError.message}`, { theme: "dark" });
+    }
+    if (alertsError) {
+      console.error('Error al cargar alertas:', alertsError);
+      toast.error(`Error al cargar las alertas. Detalle: ${alertsError.message}`, { theme: "dark" });
+    }
+    if (exchangeRateError) {
+      console.error('Error al cargar tasa de cambio:', exchangeRateError);
+      toast.error(`Error al cargar la tasa de cambio. Los valores se mostrarán en USD. Detalle: ${exchangeRateError.message}`, { theme: "dark" });
+    }
+  }, [statsError, alertsError, exchangeRateError]);
 
-  if (isLoading) {
+  // Función para formatear valores monetarios
+  const formatCurrency = useCallback((value: number | undefined | null) => {
+    if (value === undefined || value === null) return 'N/A';
+    
+    let displayValue = value;
+    let symbol = '$'; // Símbolo por defecto para USD
+
+    // CAMBIO: Verificación más robusta para latestExchangeRate
+    if (userCurrencySymbol === 'Bs' && latestExchangeRate?.rate && latestExchangeRate.rate > 0) {
+      displayValue = value * latestExchangeRate.rate;
+      symbol = 'Bs '; 
+    }
+
+    return `${symbol}${displayValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }, [userCurrencySymbol, latestExchangeRate]); 
+
+
+  const inventoryStatusData = useMemo(() => {
+    if (!stats) return { labels: [], datasets: [] };
+    const data = [
+      stats.inStockItems,
+      stats.lowStockItems,
+      stats.outOfStockItems,
+      stats.overstockedItems,
+      stats.unknownStatusItems,
+    ];
+    const labels = ['En Stock', 'Bajo Stock', 'Fuera de Stock', 'Sobre Stock', 'Desconocido'];
+    const colors = ['#22C55E', '#FBBF24', '#EF4444', '#0EA5E9', '#6B7280'];
+    
+    return {
+      labels: labels,
+      datasets: [
+        {
+          data: data,
+          backgroundColor: colors,
+          borderColor: colors,
+          hoverOffset: 4,
+        },
+      ],
+    };
+  }, [stats]);
+
+  const categoriesDistributionData = useMemo(() => {
+    if (!stats || !stats.categoriesDistribution) return { labels: [], datasets: [] };
+    const labels = Object.keys(stats.categoriesDistribution);
+    const data = Object.values(stats.categoriesDistribution);
+    const backgroundColors = labels.map((_, index) => {
+        const colors = ['#8B5CF6', '#EC4899', '#10B981', '#F59E0B', '#6366F1', '#EF4444'];
+        return colors[index % colors.length];
+    });
+
+    return {
+      labels: labels,
+      datasets: [
+        {
+          label: 'Número de Productos por Categoría',
+          data: data,
+          backgroundColor: backgroundColors,
+          borderColor: backgroundColors.map(color => color.replace('0.2', '1')),
+          borderWidth: 1,
+        },
+      ],
+    };
+  }, [stats]);
+
+  if (isLoadingStats || isLoadingExchangeRate) { 
     return (
-      <div className="flex justify-center items-center h-full text-white min-h-[calc(100vh-200px)]">
-        <Loader2 className="w-8 h-8 animate-spin mr-2" /> Cargando datos del dashboard...
+      <div className="flex items-center justify-center min-h-screen bg-slate-900 text-slate-300">
+        <Loader2 className="w-10 h-10 animate-spin mr-3" />
+        Cargando datos del dashboard...
       </div>
     );
   }
-
-  if (error) {
-    return (
-      <div className="text-center text-red-400 min-h-[calc(100vh-200px)] flex flex-col items-center justify-center">
-        <AlertTriangle className="w-16 h-16 mb-4" />
-        <p className="text-xl font-bold">Error al cargar los datos del dashboard</p>
-        <p className="mt-2 text-md">Detalle: {error instanceof Error ? error.message : String(error)}</p>
-        <p className="mt-4 text-sm text-slate-500">Asegúrate de que tu backend esté funcionando y el endpoint de analíticas (`/inventory/analytics`) esté correctamente implementado y accesible.</p>
-      </div>
-    );
-  }
-
-  const currentStatsData: InventoryStats = statsData || { 
-    totalProducts: 0, 
-    totalValue: 0, 
-    lowStockItems: 0, 
-    outOfStockItems: 0, 
-    categories: {}, 
-    totalItems: 0 
-  };
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-center justify-between">
+    <div className="p-4 sm:p-6 lg:p-8 bg-slate-900 min-h-screen text-slate-200">
+      <div className="mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center">
         <div>
-          <h1 className="text-3xl font-bold text-white">Command Center</h1>
-          <p className="text-slate-400 mt-1">Real-time inventory overview and system status</p>
-          
-          {user && (
-            <div className="mt-3 flex items-center gap-2">
-              <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
-              <span className="text-green-400 text-sm">
-                Sesión activa: {user.nombre} ({user.email})
-              </span>
+          <h1 className="text-4xl font-extrabold text-white mb-2">
+            ¡Hola, {user ? user.username : 'Usuario'}!
+          </h1>
+          <p className="text-slate-400 text-lg">Bienvenido de nuevo a tu panel de control de inventario.</p>
+        </div>
+        <div className="mt-4 sm:mt-0 text-right text-slate-500">
+          Última actualización: {lastUpdate || 'Cargando...'}
+        </div>
+      </div>
+
+      {/* Tarjetas de Métricas Principales */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <MetricCard 
+          icon={<Package className="w-6 h-6 text-cyan-400" />}
+          title="Total Productos"
+          value={stats?.totalProducts?.toLocaleString() || 'N/A'}
+          description="Número total de productos únicos en inventario."
+          bgColor="bg-cyan-900/30"
+          borderColor="border-cyan-700/50"
+        />
+        <MetricCard 
+          icon={<ShoppingCart className="w-6 h-6 text-green-400" />}
+          title="Items en Stock"
+          value={stats?.totalItemsInStock?.toLocaleString() || 'N/A'}
+          description="Cantidad total de artículos disponibles."
+          bgColor="bg-green-900/30"
+          borderColor="border-green-700/50"
+        />
+        <MetricCard 
+          icon={<DollarSign className="w-6 h-6 text-fuchsia-400" />}
+          title="Valor Total Inventario"
+          value={formatCurrency(stats?.totalValue)} 
+          description="Valor monetario estimado de todo el inventario."
+          bgColor="bg-fuchsia-900/30"
+          borderColor="border-fuchsia-700/50"
+        />
+        <MetricCard 
+          icon={<AlertTriangle className="w-6 h-6 text-amber-400" />}
+          title="Productos Bajo Stock"
+          value={stats?.lowStockItems?.toLocaleString() || 'N/A'}
+          description="Artículos que necesitan ser reabastecidos pronto."
+          bgColor="bg-amber-900/30"
+          borderColor="border-amber-700/50"
+        />
+      </div>
+
+      {/* Sección de Alertas y Métricas de Rendimiento */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        <div className="lg:col-span-2 bg-slate-800/30 rounded-xl border border-slate-700/50 backdrop-blur-sm p-6 shadow-xl">
+          <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
+            <AlertTriangle className="w-6 h-6 text-amber-400" /> Alertas de Inventario ({alerts?.length || 0})
+          </h2>
+          {isLoadingAlerts ? (
+            <div className="text-center text-slate-400 py-8 flex justify-center items-center">
+              <Loader2 className="w-6 h-6 animate-spin mr-2" /> Cargando alertas...
+            </div>
+          ) : alertsError ? (
+            <div className="text-center text-red-400 py-8">
+              Error al cargar alertas: {alertsError.message}
+            </div>
+          ) : alerts && alerts.length > 0 ? (
+            <div className="space-y-4 max-h-80 overflow-y-auto pr-2">
+              {alerts.map(alert => (
+                <AlertCard key={alert.id} alert={alert} />
+              ))}
+            </div>
+          ) : (
+            <div className="text-center text-slate-500 py-8">
+              <CheckCircle className="w-12 h-12 mx-auto mb-3 text-emerald-500/50" />
+              <p>¡Todo en orden! No hay alertas de inventario.</p>
             </div>
           )}
         </div>
-        <div className="bg-slate-800/50 rounded-lg px-4 py-2 border border-cyan-500/20">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse"></div>
-            <span className="text-cyan-400 text-sm font-medium">LIVE</span>
+
+        <div className="bg-slate-800/30 rounded-xl border border-slate-700/50 backdrop-blur-sm p-6 shadow-xl">
+          <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
+            <BarChart2 className="w-6 h-6 text-purple-400" /> Métricas de Rendimiento
+          </h2>
+          <div className="space-y-4">
+            <MetricLine 
+              label="Tasa de Cumplimiento" 
+              value={stats?.performanceMetrics?.fulfillmentRate || 'N/A'} 
+              icon={<TrendingUp className="w-5 h-5 text-green-400" />}
+            />
+            <MetricLine 
+              label="Entrega a Tiempo" 
+              value={stats?.performanceMetrics?.deliveryOnTime || 'N/A'} 
+              icon={<CheckCircle className="w-5 h-5 text-blue-400" />}
+            />
+              <MetricLine 
+              label="Estado de la Base de Datos" 
+              value={stats?.systemStatus?.databaseConnection || 'N/A'} 
+              icon={stats?.systemStatus?.databaseConnection === 'OK' ? <Database className="w-5 h-5 text-emerald-400" /> : <XCircle className="w-5 h-5 text-red-400" />}
+            />
+              <MetricLine 
+              label="Tiempo Activo del Servidor" 
+              value={stats?.systemStatus?.serverUptime || 'N/A'} 
+              icon={<Server className="w-5 h-5 text-orange-400" />}
+            />
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard
-          title="Total Products"
-          value={currentStatsData.totalProducts} 
-          change="+12%" 
-          icon={Package}
-          color="cyan"
-        />
-        <StatCard
-          title="Total Value"
-          value={formatCurrency(currentStatsData.totalValue)} 
-          change="+8.2%" 
-          icon={TrendingUp}
-          color="emerald"
-        />
-        <StatCard
-          title="Low Stock Alerts"
-          value={currentStatsData.lowStockItems} 
-          change="-3" 
-          icon={AlertTriangle}
-          trend="down"
-          color="amber"
-        />
-        <StatCard
-          title="Out of Stock"
-          value={currentStatsData.outOfStockItems} 
-          change="+1" 
-          icon={TrendingDown}
-          color="red"
-        />
+      {/* Gráficos de Datos */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <div className="bg-slate-800/30 rounded-xl border border-slate-700/50 backdrop-blur-sm p-6 shadow-xl">
+          <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
+            <Layers className="w-6 h-6 text-indigo-400" /> Estado del Inventario por Tipo
+          </h2>
+          {inventoryStatusData.labels.length > 0 ? (
+            <div className="h-64 flex justify-center items-center">
+              <DoughnutChart data={inventoryStatusData} />
+            </div>
+          ) : (
+            <div className="text-center text-slate-500 py-8">No hay datos de estado de inventario para mostrar.</div>
+          )}
+        </div>
+
+        <div className="bg-slate-800/30 rounded-xl border border-slate-700/50 backdrop-blur-sm p-6 shadow-xl">
+          <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
+            <List className="w-6 h-6 text-green-400" /> Distribución por Categorías
+          </h2>
+          {categoriesDistributionData.labels.length > 0 ? (
+            <div className="h-64">
+              <BarChart data={categoriesDistributionData} />
+            </div>
+          ) : (
+            <div className="text-center text-slate-500 py-8">No hay datos de categorías para mostrar.</div>
+          )}
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2">
-          <div className="bg-slate-800/30 rounded-xl border border-slate-700/50 backdrop-blur-sm">
-            <div className="p-6 border-b border-slate-700/50">
-              <h2 className="text-xl font-semibold text-white flex items-center gap-2">
-                <Activity className="w-5 h-5 text-cyan-400" />
-                Recent Activity
-              </h2>
-            </div>
-            <div className="p-6">
-              <div className="space-y-4">
-                {mockProducts && mockProducts.slice(0, 3).map((product: Product, index: number) => ( 
-                  <div key={product.id} className="flex items-start gap-4 p-4 rounded-lg bg-slate-700/20 hover:bg-slate-700/30 transition-colors duration-200">
-                    <div className="flex-shrink-0 p-2 rounded-full bg-slate-700/50">
-                      {getActivityIcon('updated')} 
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-white font-medium">{product.name}</p>
-                      <p className="text-slate-400 text-sm mt-1">Stock updated to {product.quantity} units</p>
-                      {product.lastUpdated && <p className="text-slate-500 text-xs mt-2">{formatDate(product.lastUpdated)}</p>} {/* Condicional por si lastUpdated es undefined */}
-                    </div>
-                  </div>
+      {/* Top Productos por Valor */}
+      <div className="bg-slate-800/30 rounded-xl border border-slate-700/50 backdrop-blur-sm p-6 shadow-xl mb-8">
+        <h2 className="text-2xl font-bold text-white mb-4 flex items-center gap-2">
+          <DollarSign className="w-6 h-6 text-emerald-400" /> Top 5 Productos por Valor
+        </h2>
+        {stats?.topProductsByValue && stats.topProductsByValue.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-700">
+              <thead className="bg-slate-700/50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Producto</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Categoría</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Cantidad</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Precio Unitario</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Valor Total</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-700/50">
+                {stats.topProductsByValue.map((product: TopProductValue) => (
+                  <tr key={product.id} className="hover:bg-slate-700/20">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">{product.name}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">{product.category || 'N/A'}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">{product.quantity}</td>
+                    {/* CAMBIO CLAVE: Usar formatCurrency para Precio Unitario */}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">{formatCurrency(product.price)}</td>
+                    {/* CAMBIO CLAVE: Usar formatCurrency para Valor Total */}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-white font-semibold">{formatCurrency(product.value)}</td>
+                  </tr>
                 ))}
-              </div>
-            </div>
+              </tbody>
+            </table>
           </div>
-        </div>
-
-        <div className="bg-slate-800/30 rounded-xl border border-slate-700/50 backdrop-blur-sm">
-          <div className="p-6 border-b border-slate-700/50">
-            <h2 className="text-xl font-semibold text-white">Category Distribution</h2>
-          </div>
-          <div className="p-6">
-            <div className="space-y-4">
-              {Object.entries(currentStatsData.categories || {}).map(([category, count]) => { 
-                const percentage = (count / (currentStatsData.totalProducts || 1)) * 100; 
-                return (
-                  <div key={category} className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-300">{category}</span>
-                      <span className="text-cyan-400">{count} items</span>
-                    </div>
-                    <div className="w-full bg-slate-700/50 rounded-full h-2">
-                      <div 
-                        className="bg-gradient-to-r from-cyan-500 to-blue-500 h-2 rounded-full transition-all duration-500"
-                        style={{ width: `${percentage}%` }}
-                      ></div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
+        ) : (
+          <div className="text-center text-slate-500 py-8">No hay datos de productos para el top por valor.</div>
+        )}
       </div>
+
+      {/* Pie de página (opcional, si lo tienes en tu Dashboard) */}
+      <footer className="text-center text-slate-500 text-sm mt-8">
+        &copy; {new Date().getFullYear()} NeoStock. All rights reserved.
+      </footer>
     </div>
   );
 };
+
+// Componente auxiliar para las tarjetas de métricas
+interface MetricCardProps {
+  icon: React.ReactNode;
+  title: string;
+  value: string;
+  description: string;
+  bgColor: string;
+  borderColor: string;
+}
+
+const MetricCard: React.FC<MetricCardProps> = ({ icon, title, value, description, bgColor, borderColor }) => (
+  <div className={`p-6 rounded-xl border ${bgColor} ${borderColor} shadow-lg flex flex-col justify-between`}>
+    <div className="flex items-center justify-between mb-4">
+      <h3 className="text-lg font-semibold text-white">{title}</h3>
+      <div className={`p-2 rounded-full ${bgColor} border ${borderColor}`}>
+        {icon}
+      </div>
+    </div>
+    <p className="text-4xl font-extrabold text-white mb-2">{value}</p>
+    <p className="text-slate-400 text-sm">{description}</p>
+  </div>
+);
+
+// Componente auxiliar para las líneas de métricas de rendimiento
+interface MetricLineProps {
+  label: string;
+  value: string;
+  icon: React.ReactNode;
+}
+
+const MetricLine: React.FC<MetricLineProps> = ({ label, value, icon }) => (
+  <div className="flex items-center justify-between p-3 bg-slate-700/50 rounded-lg border border-slate-600/50">
+    <div className="flex items-center gap-3">
+      <div className="p-2 bg-slate-600/50 rounded-full">{icon}</div>
+      <span className="text-slate-300 font-medium">{label}:</span>
+    </div>
+    <span className="text-white font-semibold">{value}</span>
+  </div>
+);
 
 export default Dashboard;

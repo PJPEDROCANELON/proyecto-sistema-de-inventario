@@ -1,3 +1,5 @@
+// C:\Users\pedro\Desktop\project\src\components\Sidebar.tsx
+
 import React from 'react';
 import { 
   Home, 
@@ -5,13 +7,14 @@ import {
   BarChart3, 
   Settings, 
   Bell,
-  Zap
-} from 'lucide-react'; // Eliminado Search ya que no se usa
+  Zap,
+  Truck // Nuevo: Ícono para "Entrada de Mercadería"
+} from 'lucide-react'; 
 
 interface SidebarProps {
   activeSection: string;
   onSectionChange: (section: string) => void;
-  user: {  // Añadida la prop user
+  user: { 
     id: number;
     nombre: string;
     email: string;
@@ -22,14 +25,16 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ 
   activeSection, 
   onSectionChange,
-  user  // Recibiendo la prop user
+  user 
 }) => {
   const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: Home },
-    { id: 'inventory', label: 'Inventory', icon: Package },
-    { id: 'analytics', label: 'Analytics', icon: BarChart3 },
-    { id: 'alerts', label: 'Alerts', icon: Bell },
-    { id: 'settings', label: 'Settings', icon: Settings },
+    { id: 'dashboard', label: 'Tablero', icon: Home }, // Traducido
+    { id: 'inventory', label: 'Inventario', icon: Package }, // Traducido
+    { id: 'orders', label: 'Órdenes', icon: Bell }, // Traducido y movido, asumiendo que es una sección principal
+    { id: 'merchandise-inflow', label: 'Entrada de Mercadería', icon: Truck }, // NUEVO ÍTEM
+    { id: 'analytics', label: 'Análisis', icon: BarChart3 }, // Traducido
+    { id: 'alerts', label: 'Alertas', icon: Bell }, // Traducido
+    { id: 'settings', label: 'Configuración', icon: Settings }, // Traducido
   ];
 
   return (
@@ -44,11 +49,11 @@ const Sidebar: React.FC<SidebarProps> = ({
         </div>
         <div>
           <h1 className="text-xl font-bold text-white">NeoStock</h1>
-          <p className="text-xs text-cyan-400">Futuristic Inventory</p>
+          <p className="text-xs text-cyan-400">Futuristic Inventory</p> {/* Eslogan, no traducir directamente */}
         </div>
       </div>
 
-      {/* User Profile Section - Añadido */}
+      {/* User Profile Section */}
       <div className="p-4 border-b border-cyan-500/20 flex items-center gap-3">
         <div className="bg-cyan-500/10 rounded-full w-10 h-10 flex items-center justify-center">
           <span className="text-cyan-300 font-bold">
@@ -94,9 +99,9 @@ const Sidebar: React.FC<SidebarProps> = ({
         <div className="bg-slate-800/50 rounded-lg p-4 border border-cyan-500/20">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-            <span className="text-sm text-slate-300">System Online</span>
+            <span className="text-sm text-slate-300">Sistema en Línea</span> 
           </div>
-          <p className="text-xs text-slate-400 mt-1">All systems operational</p>
+          <p className="text-xs text-slate-400 mt-1">Todos los sistemas operativos</p> 
         </div>
       </div>
     </div>

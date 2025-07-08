@@ -1,10 +1,20 @@
 // C:\Users\pedro\Desktop\project\src\api\inventoryService.ts
 
 import axios from 'axios';
-import { Product, PaginatedResponse, InventoryQueryOptions, InventoryStats, InventoryAlert, NeoStockResponse } from '../types';
+import { 
+  Product, 
+  PaginatedResponse, 
+  InventoryQueryOptions, 
+  InventoryStats, 
+  InventoryAlert, 
+  NeoStockResponse,
+  Order, 
+  OrderItem 
+} from '../types'; 
 
 // La URL base de tu API Backend
-const API_BASE_URL = 'http://localhost:3001/api/inventory';
+// Usar un prefijo '/api' para todas las rutas del backend si es consistente.
+const API_BASE_URL = 'http://localhost:3001/api'; 
 
 // Crear una instancia de Axios para poder configurar interceptores
 const axiosInstance = axios.create({
@@ -14,12 +24,9 @@ const axiosInstance = axios.create({
 // INTERCEPTOR DE SOLICITUDES: Añadir el token JWT a cada request
 axiosInstance.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('authToken'); // Obtener el token del localStorage
+    const token = localStorage.getItem('authToken'); 
     if (token) {
-      config.headers.Authorization = `Bearer ${token}`; // Añadir el token al encabezado Authorization
-      // console.log('Interceptor: Token JWT añadido a la solicitud:', token); // Para depuración
-    } else {
-      // console.log('Interceptor: No se encontró token JWT en localStorage.'); // Para depuración
+      config.headers.Authorization = `Bearer ${token}`; 
     }
     return config;
   },
@@ -29,15 +36,11 @@ axiosInstance.interceptors.request.use(
 );
 
 class InventoryService {
-  /**
-   * Obtiene una lista paginada y filtrada de productos.
-   * @param options Opciones de paginación, búsqueda y filtro.
-   * @returns Una promesa que resuelve con los productos paginados.
-   */
+  // --- Métodos de Inventario ---
+
   async getProducts(options: InventoryQueryOptions): Promise<PaginatedResponse<Product>> {
     try {
-      // Usar axiosInstance en lugar de axios directamente
-      const response = await axiosInstance.get<NeoStockResponse<PaginatedResponse<Product>>>(`/products`, {
+      const response = await axiosInstance.get<NeoStockResponse<PaginatedResponse<Product>>>(`/inventory/products`, { 
         params: options,
       });
       if (response.data.success && response.data.data) {
@@ -50,15 +53,9 @@ class InventoryService {
     }
   }
 
-  /**
-   * Añade un nuevo producto.
-   * @param productData Los datos del producto a añadir.
-   * @returns Una promesa que resuelve con el producto añadido.
-   */
   async addProduct(productData: Partial<Product>): Promise<Product> {
     try {
-      // Usar axiosInstance en lugar de axios directamente
-      const response = await axiosInstance.post<NeoStockResponse<Product>>(`/products`, productData);
+      const response = await axiosInstance.post<NeoStockResponse<Product>>(`/inventory/products`, productData); 
       if (response.data.success && response.data.data) {
         return response.data.data;
       }
@@ -69,16 +66,9 @@ class InventoryService {
     }
   }
 
-  /**
-   * Actualiza un producto existente.
-   * @param id El ID del producto a actualizar.
-   * @param productData Los datos parciales del producto a actualizar.
-   * @returns Una promesa que resuelve con el producto actualizado.
-   */
   async updateProduct(id: number, productData: Partial<Product>): Promise<Product> {
     try {
-      // Usar axiosInstance en lugar de axios directamente
-      const response = await axiosInstance.put<NeoStockResponse<Product>>(`/products/${id}`, productData);
+      const response = await axiosInstance.put<NeoStockResponse<Product>>(`/inventory/products/${id}`, productData); 
       if (response.data.success && response.data.data) {
         return response.data.data;
       }
@@ -89,15 +79,9 @@ class InventoryService {
     }
   }
 
-  /**
-   * Elimina un producto.
-   * @param id El ID del producto a eliminar.
-   * @returns Una promesa que resuelve cuando el producto es eliminado.
-   */
   async deleteProduct(id: number): Promise<void> {
     try {
-      // Usar axiosInstance en lugar de axios directamente
-      const response = await axiosInstance.delete<NeoStockResponse<null>>(`/products/${id}`);
+      const response = await axiosInstance.delete<NeoStockResponse<null>>(`/inventory/products/${id}`); 
       if (!response.data.success) {
         throw new Error(response.data.message || 'Error al eliminar producto');
       }
@@ -107,14 +91,9 @@ class InventoryService {
     }
   }
 
-  /**
-   * Obtiene las estadísticas y analíticas generales del inventario.
-   * @returns Una promesa que resuelve con las estadísticas del inventario.
-   */
   async getInventoryAnalytics(): Promise<InventoryStats> {
     try {
-      // Usar axiosInstance en lugar de axios directamente
-      const response = await axiosInstance.get<NeoStockResponse<InventoryStats>>(`/analytics`);
+      const response = await axiosInstance.get<NeoStockResponse<InventoryStats>>(`/analytics`); 
       if (response.data.success && response.data.data) {
         return response.data.data;
       }
@@ -125,20 +104,145 @@ class InventoryService {
     }
   }
 
-  /**
-   * NUEVO MÉTODO: Obtiene la lista de alertas de inventario.
-   * @returns Una promesa que resuelve con un array de alertas de inventario.
-   */
   async getInventoryAlerts(): Promise<InventoryAlert[]> {
     try {
-      // Usar axiosInstance en lugar de axios directamente
-      const response = await axiosInstance.get<NeoStockResponse<InventoryAlert[]>>(`/alerts`);
+      const response = await axiosInstance.get<NeoStockResponse<InventoryAlert[]>>(`/alerts`); 
       if (response.data.success && response.data.data) {
         return response.data.data;
       }
       throw new Error(response.data.message || 'Error al obtener alertas de inventario');
     } catch (error) {
       console.error('Error fetching inventory alerts:', error);
+      throw error;
+    }
+  }
+
+  // --- Métodos de Órdenes ---
+
+  /**
+   * Registra una venta creando una nueva orden en el backend.
+   * @param saleData Datos de la venta, incluyendo productId, quantity, priceAtSale, etc.
+   * @returns Una promesa que resuelve con la orden creada y el OrderItem.
+   */
+  async recordSale(saleData: { productId: number; quantity: number; priceAtSale: number; deliveryDateExpected?: string; notes?: string; }): Promise<{ order: Order; orderItem: OrderItem }> {
+    try {
+      const response = await axiosInstance.post<NeoStockResponse<{ order: Order; orderItem: OrderItem }>>(`/inventory/products/sale`, saleData); 
+      if (response.data.success && response.data.data) {
+        return response.data.data;
+      }
+      throw new Error(response.data.message || 'Error al registrar la venta');
+    } catch (error) {
+      console.error('Error recording sale:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Crea una nueva orden con múltiples ítems.
+   * @param orderData Datos de la orden, incluyendo userId y un array de orderItems.
+   * @returns Una promesa que resuelve con la orden creada.
+   */
+  async createOrder(orderData: Omit<Order, 'id' | 'totalAmount' | 'status' | 'createdAt' | 'updatedAt' | 'deliveryStatus'> & { orderItems: Omit<OrderItem, 'id' | 'orderId' | 'productName' | 'sku' | 'category'>[] }): Promise<Order> {
+    try {
+      const response = await axiosInstance.post<NeoStockResponse<Order>>(`/orders`, orderData); 
+      if (response.data.success && response.data.data) {
+        return response.data.data;
+      }
+      throw new Error(response.data.message || 'Error al crear la orden');
+    } catch (error) {
+      console.error('Error creating order:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Obtiene una lista paginada y filtrada de órdenes.
+   * @param options Opciones de paginación y filtro para órdenes.
+   * @returns Una promesa que resuelve con las órdenes paginadas.
+   */
+  async getOrders(options?: { page?: number; limit?: number; status?: string; searchTerm?: string }): Promise<PaginatedResponse<Order>> {
+    try {
+      const response = await axiosInstance.get<NeoStockResponse<PaginatedResponse<Order>>>(`/orders`, { params: options }); 
+      if (response.data.success && response.data.data) {
+        return response.data.data;
+      }
+      throw new Error(response.data.message || 'Error al obtener órdenes');
+    } catch (error) {
+      console.error('Error fetching orders:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Obtiene los detalles de una orden específica por su ID.
+   * @param id El ID de la orden a obtener.
+   * @returns Una promesa que resuelve con los detalles de la orden.
+   */
+  async getOrderById(id: number): Promise<Order> {
+    try {
+      const response = await axiosInstance.get<NeoStockResponse<Order>>(`/orders/${id}`); 
+      if (response.data.success && response.data.data) {
+        return response.data.data;
+      }
+      throw new Error(response.data.message || 'Error al obtener la orden');
+    } catch (error) {
+      console.error(`Error fetching order with ID ${id}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Actualiza el estado o detalles de una orden existente.
+   * @param id El ID de la orden a actualizar.
+   * @param orderData Los datos parciales de la orden a actualizar.
+   * @returns Una promesa que resuelve con la orden actualizada.
+   */
+  async updateOrder(id: number, orderData: Partial<Order>): Promise<Order> {
+    try {
+      const response = await axiosInstance.put<NeoStockResponse<Order>>(`/orders/${id}`, orderData); 
+      if (response.data.success && response.data.data) {
+        return response.data.data;
+      }
+      throw new Error(response.data.message || 'Error al actualizar la orden');
+    } catch (error) {
+      console.error(`Error updating order with ID ${id}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Método específico para actualizar solo el estado de una orden.
+   * @param orderId El ID de la orden a actualizar.
+   * @param status El nuevo estado de la orden.
+   * @returns Una promesa que resuelve con la orden actualizada.
+   */
+  async updateOrderStatus(orderId: number, status: string): Promise<Order> {
+    try {
+      // Usar la ruta específica para actualizar el estado de una orden.
+      const response = await axiosInstance.put<NeoStockResponse<Order>>(`/orders/${orderId}/status`, { status: status });
+      if (response.data.success && response.data.data) {
+        return response.data.data;
+      }
+      throw new Error(response.data.message || 'Error al actualizar el estado de la orden.');
+    } catch (error) {
+      console.error(`Error updating status for order with ID ${orderId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Elimina una orden existente.
+   * @param id El ID de la orden a eliminar.
+   * @returns Una promesa que resuelve cuando la orden es eliminada.
+   */
+  async deleteOrder(id: number): Promise<void> {
+    try {
+      const response = await axiosInstance.delete<NeoStockResponse<null>>(`/orders/${id}`); 
+      if (!response.data.success) {
+        throw new Error(response.data.message || 'Error al eliminar la orden');
+      }
+    } catch (error) {
+      console.error(`Error deleting order with ID ${id}:`, error);
       throw error;
     }
   }

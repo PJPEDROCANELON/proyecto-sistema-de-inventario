@@ -3,18 +3,19 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, UseQueryResult } from '@tanstack/react-query'; 
 import InventoryService from '../api/inventoryService';
-import { InventoryAlert, AlertPriority } from '../types';
-import { Loader2, Bell, CheckCircle, AlertTriangle, XCircle, TrendingUp, Package, RefreshCw } from 'lucide-react'; // Importa RefreshCw
+import { InventoryAlert, AlertPriority } from '../types'; 
+import { Loader2, Bell, CheckCircle, AlertTriangle, XCircle, TrendingUp, Package, RefreshCw } from 'lucide-react'; 
 
 const AlertsPage: React.FC = () => {
   console.log("AlertsPage: Iniciando renderizado de la página de alertas.");
-  const [localAlerts, setLocalAlerts] = useState<InventoryAlert[]>([]);
+  const [localAlerts, setLocalAlerts] = useState<InventoryAlert[]>([]
+);
 
   const { 
     data, 
     isLoading, 
     error, 
-    refetch // Ahora 'refetch' se utilizará, por lo que no es necesario silenciar la advertencia
+    refetch 
   }: UseQueryResult<InventoryAlert[], Error> = useQuery<InventoryAlert[], Error>({ 
     queryKey: ['inventoryAlerts'],
     queryFn: () => InventoryService.getInventoryAlerts(), 
@@ -72,10 +73,9 @@ const AlertsPage: React.FC = () => {
     // refetch(); 
   };
 
-  // Función para manejar el clic en el botón de refrescar
   const handleRefreshAlerts = () => {
     console.log("AlertsPage: Botón de refrescar clickeado. Forzando refetch.");
-    refetch(); // Llama a la función refetch para recargar las alertas inmediatamente
+    refetch(); 
   };
 
   const getPriorityColor = (priority: AlertPriority) => {
@@ -109,66 +109,65 @@ const AlertsPage: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 p-4 md:p-8 bg-gray-900 text-white min-h-screen">
+    <div className="space-y-6 p-4 md:p-8 bg-gray-900 text-white min-h-screen"> 
       <h1 className="text-4xl font-bold text-cyan-400 mb-6 flex items-center gap-3">
-        <Bell size={36} /> Sistema de Alertas Inteligentes
+        <Bell size={36} /> Sistema de Alertas Inteligentes 
       </h1>
-      <p className="text-slate-300 mb-8">Monitorea y gestiona las notificaciones importantes de tu inventario.</p>
+      <p className="text-slate-300 mb-8">Monitorea y gestiona las notificaciones importantes de tu inventario.</p> 
 
       <div className="bg-slate-800/30 rounded-xl border border-slate-700/50 backdrop-blur-sm p-6">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-            Alertas Activas ({unreadAlerts.length})
+            Alertas Activas ({unreadAlerts.length}) 
             {isLoading && <Loader2 className="w-5 h-5 animate-spin text-cyan-400" />}
           </h2>
-          <div className="flex gap-2"> {/* Contenedor para los botones */}
+          <div className="flex gap-2"> 
             {unreadAlerts.length > 0 && (
               <button
                 onClick={markAllAsRead}
                 className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium transition-colors duration-200 flex items-center gap-2"
               >
-                <CheckCircle className="w-4 h-4" /> Marcar todas como leídas
+                <CheckCircle className="w-4 h-4" /> Marcar todas como leídas 
               </button>
             )}
-            {/* NUEVO BOTÓN: Actualizar Alertas */}
             <button
               onClick={handleRefreshAlerts}
               className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium transition-colors duration-200 flex items-center gap-2"
-              disabled={isLoading} // Deshabilitar si ya está cargando
+              disabled={isLoading}
             >
               {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />} 
-              Actualizar
+              Actualizar 
             </button>
           </div>
         </div>
 
-        {isLoading && !data ? ( // Muestra el spinner de carga si está cargando y no hay datos aún
+        {isLoading && !data ? (
           <div className="text-center py-8 flex justify-center items-center text-white">
-            <Loader2 className="w-8 h-8 animate-spin mr-2" /> Cargando alertas...
+            <Loader2 className="w-8 h-8 animate-spin mr-2" /> Cargando alertas... 
           </div>
         ) : error ? (
           <div className="text-center py-8 text-red-400">
-            <p>Error al cargar las alertas: {error.message}</p>
-            <p>Por favor, revisa la consola para más detalles.</p>
+            <p>Error al cargar las alertas: {error.message}</p> 
+            <p>Por favor, revisa la consola para más detalles.</p> 
           </div>
         ) : unreadAlerts.length === 0 ? (
           <div className="text-center py-8 text-slate-400">
             <Bell className="w-16 h-16 text-slate-600 mx-auto mb-4" />
-            <p className="text-lg">¡No hay alertas activas en este momento!</p>
-            <p className="text-sm mt-2">Tu inventario está en buen estado o revisa la configuración de productos.</p>
+            <p className="text-lg">¡No hay alertas activas en este momento!</p> 
+            <p className="text-sm mt-2">Tu inventario está en buen estado o revisa la configuración de productos.</p> 
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-700/50">
               <thead className="bg-slate-700/50">
                 <tr>
-                  <th className="py-3 px-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Prioridad</th>
-                  <th className="py-3 px-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Producto</th>
-                  <th className="py-3 px-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Estado de Stock</th>
-                  <th className="py-3 px-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Cantidad</th>
-                  <th className="py-3 px-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Mín. Stock</th>
-                  <th className="py-3 px-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Últ. Actualización</th>
-                  <th className="py-3 px-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Acciones</th>
+                  <th className="py-3 px-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Prioridad</th> 
+                  <th className="py-3 px-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Producto</th> 
+                  <th className="py-3 px-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Estado de Stock</th> 
+                  <th className="py-3 px-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Cantidad</th> 
+                  <th className="py-3 px-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Mín. Stock</th> 
+                  <th className="py-3 px-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Últ. Actualización</th> 
+                  <th className="py-3 px-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Acciones</th> 
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-700/50">
@@ -180,14 +179,21 @@ const AlertsPage: React.FC = () => {
                         {alert.priority === 'High' && <AlertTriangle size={12} />}
                         {alert.priority === 'Medium' && <Bell size={12} />}
                         {alert.priority === 'Low' && <CheckCircle size={12} />} 
-                        {alert.priority}
+                        {alert.priority === 'Critical' && 'Crítica'} 
+                        {alert.priority === 'High' && 'Alta'} 
+                        {alert.priority === 'Medium' && 'Media'} 
+                        {alert.priority === 'Low' && 'Baja'} 
                       </span>
                     </td>
                     <td className="py-3 px-4 text-white font-medium">{alert.name} <span className="text-slate-400 text-xs">({alert.sku})</span></td>
                     <td className="py-3 px-4 whitespace-nowrap">
                       <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(alert.status)}`}>
                         {getStatusIcon(alert.status)}
-                        {alert.status}
+                        {alert.status === 'In Stock' && 'En Stock'} 
+                        {alert.status === 'Low Stock' && 'Poco Stock'} 
+                        {alert.status === 'Out of Stock' && 'Sin Stock'} 
+                        {alert.status === 'Overstocked' && 'Sobrestock'} 
+                        {alert.status === 'Unknown' && 'Desconocido'} 
                       </span>
                     </td>
                     <td className="py-3 px-4 text-slate-300">{alert.quantity}</td>
@@ -200,7 +206,7 @@ const AlertsPage: React.FC = () => {
                         onClick={() => markAsRead(alert.id)}
                         className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm transition-colors duration-200"
                       >
-                        Marcar como Leída
+                        Marcar como Leída 
                       </button>
                     </td>
                   </tr>

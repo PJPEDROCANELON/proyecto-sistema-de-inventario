@@ -1,8 +1,10 @@
 // C:\Users\pedro\Desktop\project\src\components\inventory\ProductForm.tsx
 
-import React, { useState, useEffect } from 'react';
-import { Product } from '../../types/index'; 
-import { X, Save, Loader2 } from 'lucide-react'; 
+import React, { useState, useEffect } from 'react'; // CAMBIO: Eliminada la importación de useCallback
+import { Product, User } from '../../types/index'; 
+import { X, Save, Loader2, DollarSign } from 'lucide-react'; 
+import exchangeRateService from '../../api/exchangeRateService'; 
+import { toast } from 'react-toastify';
 
 interface ProductFormProps {
   isOpen: boolean;
@@ -11,6 +13,7 @@ interface ProductFormProps {
   initialData?: Product | null; 
   isSaving: boolean; 
   saveError: string | null; 
+  currentUser: User | null; 
 }
 
 const ProductForm: React.FC<ProductFormProps> = ({ 
@@ -19,34 +22,58 @@ const ProductForm: React.FC<ProductFormProps> = ({
   onSave, 
   initialData = null,
   isSaving,
-  saveError
+  saveError,
+  currentUser 
 }) => {
-  // ATENCIÓN: Los estados para cantidad, minStock y precio ahora son STRING
-  // para permitir una escritura más fluida en el input type="number"
   const [name, setName] = useState(initialData?.name || '');
   const [description, setDescription] = useState(initialData?.description || '');
   const [sku, setSku] = useState(initialData?.sku || '');
   const [category, setCategory] = useState(initialData?.category || ''); 
-  const [quantityInput, setQuantityInput] = useState(String(initialData?.quantity ?? '')); // Inicializa como string
-  const [minStockInput, setMinStockInput] = useState(String(initialData?.minStock ?? '')); // Inicializa como string
-  const [priceInput, setPriceInput] = useState(String(initialData?.price ?? ''));         // Inicializa como string
+  const [quantityInput, setQuantityInput] = useState(String(initialData?.quantity ?? '')); 
+  const [minStockInput, setMinStockInput] = useState(String(initialData?.minStock ?? '')); 
+  const [priceInput, setPriceInput] = useState(String(initialData?.price ?? '')); 
   const [location, setLocation] = useState(initialData?.location || '');
   const [formError, setFormError] = useState<string | null>(null); 
 
+  const [exchangeRate, setExchangeRate] = useState<number | null>(null);
+  // CAMBIO: Inicializar inputCurrency con la preferencia del usuario o 'USD' por defecto
+  const [inputCurrency, setInputCurrency] = useState<'USD' | 'Bs'>(
+    (currentUser?.defaultCurrencySymbol === 'Bs' ? 'Bs' : 'USD') // Si la preferencia es Bs, comenzar en Bs, si no, en USD
+  ); 
+  const [isRateLoading, setIsRateLoading] = useState(false);
+
+  // Función para cargar la última tasa de cambio
+  const fetchLatestRate = async () => {
+    setIsRateLoading(true);
+    const response = await exchangeRateService.getLatestExchangeRate('USD', 'Bs');
+    if (response.success && response.data) {
+      setExchangeRate(Number(response.data.rate));
+    } else {
+      setExchangeRate(null);
+      toast.warn('No se pudo obtener la última tasa de cambio. Los precios se guardarán en USD.', { theme: "dark" });
+    }
+    setIsRateLoading(false);
+  };
+
+  // Efecto para inicializar el formulario y cargar la tasa al abrir
   useEffect(() => {
     if (isOpen) {
       setName(initialData?.name || '');
       setDescription(initialData?.description || '');
       setSku(initialData?.sku || '');
       setCategory(initialData?.category || '');
-      // Reinicializa los inputs numéricos como strings
       setQuantityInput(String(initialData?.quantity ?? '')); 
       setMinStockInput(String(initialData?.minStock ?? '')); 
-      setPriceInput(String(initialData?.price ?? ''));     
+      
+      // Al editar, el precio siempre se muestra en USD (como está en la BD)
+      setPriceInput(String(initialData?.price ?? '')); 
+      setInputCurrency('USD'); // Al editar, la moneda de entrada siempre vuelve a USD
+
       setLocation(initialData?.location || '');
       setFormError(null); 
+      fetchLatestRate(); // Cargar la tasa al abrir el modal
     }
-  }, [isOpen, initialData]);
+  }, [isOpen, initialData]); // Dependencias: isOpen y initialData
 
   if (!isOpen) return null;
 
@@ -54,28 +81,38 @@ const ProductForm: React.FC<ProductFormProps> = ({
     e.preventDefault();
     setFormError(null);
 
-    // Convertimos las cadenas a números y realizamos la validación
     const parsedQuantity = Number(quantityInput);
     const parsedMinStock = Number(minStockInput);
-    const parsedPrice = Number(priceInput);
+    let finalPriceInUSD = Number(priceInput); // Precio que se enviará al backend (siempre en USD)
 
     if (!name.trim()) { setFormError('El nombre del producto es requerido.'); return; }
     if (!sku.trim()) { setFormError('El SKU del producto es requerido.'); return; }
     if (!category.trim()) { setFormError('La categoría del producto es requerida.'); return; }
     
     if (isNaN(parsedQuantity) || parsedQuantity < 0) { setFormError('La cantidad es requerida y debe ser un número positivo.'); return; }
-    if (isNaN(parsedPrice) || parsedPrice < 0) { setFormError('El precio es requerido y debe ser un número positivo.'); return; }
+    if (isNaN(Number(priceInput)) || Number(priceInput) < 0) { setFormError('El precio es requerido y debe ser un número positivo.'); return; }
     if (isNaN(parsedMinStock) || parsedMinStock < 0) { setFormError('El stock mínimo debe ser un número positivo.'); return; }
 
+    // Lógica de conversión de precio si se ingresó en Bs
+    if (inputCurrency === 'Bs') {
+      if (exchangeRate === null || exchangeRate <= 0) {
+        setFormError('No se pudo obtener una tasa de cambio válida para convertir de Bs a USD. Por favor, registra una tasa o ingresa el precio en USD.');
+        toast.error('No se pudo obtener una tasa de cambio válida para convertir de Bs a USD. Por favor, registra una tasa o ingresa el precio en USD.', { theme: "dark" });
+        return;
+      }
+      finalPriceInUSD = Number(priceInput) / exchangeRate;
+      // Opcional: Redondear el precio convertido si es necesario
+      // finalPriceInUSD = parseFloat(finalPriceInUSD.toFixed(2)); 
+    }
 
     const productData: Partial<Product> = {
       name: name.trim(),
       description: description.trim() || undefined, 
       sku: sku.trim(),
       category: category.trim() || undefined, 
-      quantity: parsedQuantity, // Usa el número parseado
-      minStock: parsedMinStock, // Usa el número parseado
-      price: parsedPrice,     // Usa el número parseado
+      quantity: parsedQuantity, 
+      minStock: parsedMinStock, 
+      price: finalPriceInUSD, // Este es el precio que se guarda en USD
       location: location.trim() || undefined, 
     };
 
@@ -85,8 +122,14 @@ const ProductForm: React.FC<ProductFormProps> = ({
 
     try {
       await onSave(productData);
+      // Después de guardar, si es un nuevo producto, resetear el input de precio a USD por defecto
+      if (!initialData) {
+        setPriceInput('');
+        setInputCurrency('USD'); // Resetear a USD para nueva entrada
+      }
     } catch (error) {
       console.error("Error al guardar desde el formulario:", error);
+      // El error se maneja en el componente padre (InventoryPage)
     }
   };
 
@@ -106,7 +149,6 @@ const ProductForm: React.FC<ProductFormProps> = ({
           <button 
             onClick={onClose} 
             className="text-gray-400 hover:text-white transition-colors duration-200 p-2 rounded-full hover:bg-slate-700"
-            translate="no" 
           >
             <X size={24} />
           </button>
@@ -128,7 +170,6 @@ const ProductForm: React.FC<ProductFormProps> = ({
                 onChange={(e) => setName(e.target.value)} 
                 className={commonInputClasses} 
                 required 
-                translate="no" 
               />
             </div>
             <div>
@@ -140,7 +181,6 @@ const ProductForm: React.FC<ProductFormProps> = ({
                 onChange={(e) => setSku(e.target.value)} 
                 className={commonInputClasses} 
                 required 
-                translate="no" 
               />
             </div>
           </div>
@@ -152,7 +192,6 @@ const ProductForm: React.FC<ProductFormProps> = ({
               value={description} 
               onChange={(e) => setDescription(e.target.value)} 
               className={`${commonInputClasses} h-24 resize-y`} 
-              translate="no" 
             ></textarea>
           </div>
 
@@ -166,7 +205,6 @@ const ProductForm: React.FC<ProductFormProps> = ({
                 onChange={(e) => setCategory(e.target.value)} 
                 className={commonInputClasses} 
                 required 
-                translate="no" 
               />
             </div>
             <div>
@@ -174,12 +212,11 @@ const ProductForm: React.FC<ProductFormProps> = ({
               <input 
                 type="number" 
                 id="quantity" 
-                value={quantityInput} // Usa el estado string
-                onChange={(e) => setQuantityInput(e.target.value)} // Actualiza el estado string
+                value={quantityInput} 
+                onChange={(e) => setQuantityInput(e.target.value)} 
                 className={commonInputClasses} 
                 min="0" 
                 required 
-                translate="no" 
               />
             </div>
           </div>
@@ -190,26 +227,48 @@ const ProductForm: React.FC<ProductFormProps> = ({
               <input 
                 type="number" 
                 id="minStock" 
-                value={minStockInput} // Usa el estado string
-                onChange={(e) => setMinStockInput(e.target.value)} // Actualiza el estado string
+                value={minStockInput} 
+                onChange={(e) => setMinStockInput(e.target.value)} 
                 className={commonInputClasses} 
                 min="0" 
-                translate="no" 
               />
             </div>
+            {/* Campo de Precio con Selector de Moneda */}
             <div>
               <label htmlFor="price" className={labelClasses}>Precio <span className="text-red-400">*</span></label>
-              <input 
-                type="number" 
-                id="price" 
-                value={priceInput} // Usa el estado string
-                onChange={(e) => setPriceInput(e.target.value)} // Actualiza el estado string
-                className={commonInputClasses} 
-                min="0" 
-                step="0.01" 
-                required 
-                translate="no" 
-              />
+              <div className="flex items-center gap-2">
+                <input 
+                  type="number" 
+                  id="price" 
+                  value={priceInput} 
+                  onChange={(e) => setPriceInput(e.target.value)} 
+                  className={commonInputClasses} 
+                  min="0" 
+                  step="0.01" 
+                  required 
+                  disabled={isRateLoading} 
+                />
+                <select
+                  value={inputCurrency}
+                  onChange={(e) => setInputCurrency(e.target.value as 'USD' | 'Bs')}
+                  className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  disabled={isRateLoading}
+                >
+                  <option value="USD">USD</option>
+                  <option value="Bs">Bs</option>
+                </select>
+              </div>
+              {inputCurrency === 'Bs' && exchangeRate !== null && (
+                <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
+                  <DollarSign className="w-3 h-3" /> 1 USD = Bs {exchangeRate.toFixed(4)}
+                  {isRateLoading && <Loader2 className="w-3 h-3 animate-spin ml-1" />}
+                </p>
+              )}
+              {inputCurrency === 'Bs' && exchangeRate === null && !isRateLoading && (
+                <p className="text-xs text-red-400 mt-1">
+                  No hay tasa de cambio disponible para Bs. El precio se guardará en USD.
+                </p>
+              )}
             </div>
           </div>
 
@@ -222,7 +281,6 @@ const ProductForm: React.FC<ProductFormProps> = ({
                 value={location} 
                 onChange={(e) => setLocation(e.target.value)} 
                 className={commonInputClasses} 
-                translate="no" 
               />
             </div>
           </div>
@@ -233,15 +291,13 @@ const ProductForm: React.FC<ProductFormProps> = ({
               onClick={onClose}
               disabled={isSaving}
               className="px-6 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-              translate="no" 
             >
               Cancelar
             </button>
             <button
               type="submit"
-              disabled={isSaving}
+              disabled={isSaving || isRateLoading} 
               className="px-6 py-2 bg-gradient-to-r from-cyan-600 to-blue-700 hover:from-cyan-700 hover:to-blue-800 text-white rounded-lg font-medium transition-all duration-300 flex items-center gap-2 justify-center disabled:opacity-50 disabled:cursor-not-allowed"
-              translate="no" 
             >
               {isSaving ? (
                 <span className="flex items-center gap-2"> 

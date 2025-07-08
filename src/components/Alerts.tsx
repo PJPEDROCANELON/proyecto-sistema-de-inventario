@@ -1,3 +1,5 @@
+// C:\Users\pedro\Desktop\project\src\components\Alerts.tsx
+
 import React from 'react';
 import { 
   AlertTriangle, 
@@ -7,7 +9,7 @@ import {
   Shield,
   Zap
 } from 'lucide-react';
-import { User } from '../types';
+import { User } from '../types'; // Asegúrate de que User esté importado correctamente
 
 interface AlertProps {
   id: string;
@@ -138,7 +140,7 @@ const Alerts: React.FC<AlertsProps> = ({ user }) => {
           {user && (
             <p className="text-slate-300 mt-2 flex items-center">
               <span className="bg-red-500/10 text-red-400 border border-red-500/20 px-2 py-1 rounded-md text-sm">
-                Alertas para: {user.nombre}
+                Alertas para: {user.username} {/* CORRECCIÓN: user.username */}
               </span>
             </p>
           )}

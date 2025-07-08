@@ -1,14 +1,19 @@
+// C:\Users\pedro\Desktop\project\src\components\auth\RegisterForm.tsx
+
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AuthService from '../../api/authService'; 
-import { RegisterPayload, BackendErrorResponse, User, AuthResponse } from '../../types'; 
+// CORREGIDO: Eliminada la importación directa de 'User'
+import { RegisterPayload, BackendErrorResponse, AuthResponse } from '../../types'; 
+import axios from 'axios'; 
 
+// onRegisterSuccess espera un objeto AuthResponse
 interface RegisterFormProps {
-  onRegisterSuccess: (user: User) => void; 
+  onRegisterSuccess: (authResponse: AuthResponse) => void; 
 }
 
 const RegisterForm: React.FC<RegisterFormProps> = ({ onRegisterSuccess }) => {
-  const [nombre, setNombre] = useState('');
+  const [username, setUsername] = useState(''); 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -27,24 +32,26 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onRegisterSuccess }) => {
 
     setLoading(true);
     try {
-      const registerData: RegisterPayload = { nombre, email, password };
-      const registerResult: AuthResponse = await AuthService.register(registerData); 
+      const registerData: RegisterPayload = { username, email, password };
       
-      console.log("RegisterForm: Resultado de AuthService.register (AuthResponse):", registerResult);
+      const authResult: AuthResponse = await AuthService.register(registerData); 
+      
+      console.log("RegisterForm: Resultado de AuthService.register (AuthResponse):", authResult);
 
-      if (!registerResult || !registerResult.user) {
-        console.error("RegisterForm: registerResult o registerResult.user es undefined/null:", registerResult);
+      if (!authResult || !authResult.user) { 
+        console.error("RegisterForm: Objeto de usuario no recibido después del registro:", authResult);
         setError('Error: Los datos de usuario no se recibieron correctamente.');
         setLoading(false);
         return; 
       }
 
-      console.log("RegisterForm: Pasando usuario a onRegisterSuccess:", registerResult.user); // <-- NUEVO LOG
-      onRegisterSuccess(registerResult.user); 
+      // Pasar el objeto AuthResponse completo a onRegisterSuccess
+      console.log("RegisterForm: Pasando AuthResponse completa a onRegisterSuccess:", authResult);
+      onRegisterSuccess(authResult); 
       
     } catch (err: unknown) {
       setLoading(false);
-      if (err && typeof err === 'object' && 'response' in err && err.response && typeof err.response === 'object' && 'data' in err.response) {
+      if (axios.isAxiosError(err) && err.response && err.response.data) {
         const backendError = err.response.data as BackendErrorResponse;
         if (backendError.errors && backendError.errors.length > 0) {
           setError(backendError.errors[0].msg);
@@ -87,17 +94,17 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onRegisterSuccess }) => {
           )}
           <div className="rounded-md shadow-sm -space-y-px">
             <div>
-              <label htmlFor="nombre" className="sr-only">Nombre Completo</label>
+              <label htmlFor="username" className="sr-only">Nombre de Usuario</label>
               <input
-                id="nombre"
-                name="nombre"
+                id="username" 
+                name="username" 
                 type="text"
-                autoComplete="name"
+                autoComplete="username" 
                 required
                 className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-600 placeholder-gray-500 text-white bg-gray-700 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                placeholder="Nombre Completo"
-                value={nombre}
-                onChange={(e) => setNombre(e.target.value)}
+                placeholder="Nombre de Usuario" 
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
               />
             </div>
             <div>
@@ -108,7 +115,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onRegisterSuccess }) => {
                 type="email"
                 autoComplete="email"
                 required
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-600 placeholder-gray-500 text-white bg-gray-700 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm mt-px"
+                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-600 placeholder-gray-500 text-white bg-gray-700 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:sm mt-px"
                 placeholder="Dirección de Correo"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}

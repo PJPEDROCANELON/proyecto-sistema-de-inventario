@@ -1,10 +1,14 @@
+// C:\Users\pedro\Desktop\project\src\components\auth\LoginForm.tsx
+
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom'; 
-import { User, BackendErrorResponse, AuthResponse } from '../../types'; 
+// CORREGIDO: Eliminada la importación directa de 'User'
+import { BackendErrorResponse, AuthResponse } from '../../types'; 
 import AuthService from '../../api/authService';
 
+// onLoginSuccess espera un objeto AuthResponse
 interface LoginFormProps {
-  onLoginSuccess: (user: User) => void; 
+  onLoginSuccess: (authResponse: AuthResponse) => void; 
 }
 
 const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess }) => {
@@ -33,8 +37,9 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess }) => {
         return; 
       }
 
-      console.log("LoginForm: Pasando usuario a onLoginSuccess:", loginResult.user); // <-- NUEVO LOG
-      onLoginSuccess(loginResult.user); 
+      // Pasar el objeto AuthResponse completo a onLoginSuccess
+      console.log("LoginForm: Pasando AuthResponse completa a onLoginSuccess:", loginResult);
+      onLoginSuccess(loginResult); 
     } catch (err: unknown) {
       setIsLoading(false);
       if (err && typeof err === 'object' && 'response' in err && err.response && typeof err.response === 'object' && 'data' in err.response) {
