@@ -1,17 +1,29 @@
 import axios from 'axios';
 
-// Obtener la URL base de la API desde las variables de entorno de Vite
-// En desarrollo, será 'http://localhost:3001/api' (desde .env.development o .env)
-// En producción (desplegado en Vercel), será la URL configurada en Vercel (ej. https://neostock.up.railway.app/api)
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+// Determinar la URL base de la API dinámicamente
+let API_BASE_URL;
+
+// Si la aplicación está corriendo en un entorno de producción (Vercel)
+// o si el hostname no es localhost, usamos la URL de Railway.
+// De lo contrario (en desarrollo local), usamos localhost.
+if (window.location.hostname === 'localhost' || window.location.hostname.includes('127.0.0.1')) {
+  // Entorno de desarrollo local
+  API_BASE_URL = 'http://localhost:3001/api';
+} else {
+  // Entorno de producción (Vercel)
+  // Usamos directamente la URL de tu backend en Railway
+  API_BASE_URL = 'https://neostock.up.railway.app/api';
+}
+
+console.log(`[Axios Config] API Base URL set to: ${API_BASE_URL}`);
 
 // Crear instancia de Axios
 const api = axios.create({
-  baseURL: API_BASE_URL, // CAMBIO CLAVE AQUÍ: Usar la variable de entorno
+  baseURL: API_BASE_URL, // Usar la URL base determinada dinámicamente
   timeout: 10000, // 10 segundos máximo de espera
 });
 
-// Interceptor de solicitud para depuración (opcional, puedes quitarlo si no lo necesitas)
+// Interceptor de solicitud para depuración
 api.interceptors.request.use(
   (config) => {
     console.log(`[Axios Request] ${config.method.toUpperCase()} ${config.url}`);
@@ -31,9 +43,7 @@ api.interceptors.response.use(
   },
   (error) => {
     console.error('[Axios Response Error]', error.response || error.message);
-    // Convertir error de Axios a un formato más manejable
     if (error.response) {
-      // El servidor respondió con un código de estado fuera del rango 2xx
       throw {
         message: error.response.data.message || 'Error en la solicitud',
         response: {
@@ -42,15 +52,12 @@ api.interceptors.response.use(
         }
       };
     } else if (error.request) {
-      // La solicitud fue hecha pero no se recibió respuesta (ej. Network Error)
       throw new Error('Error de red o no se recibió respuesta del servidor');
     } else {
-      // Algo pasó al configurar la solicitud
       throw new Error('Error al configurar la solicitud');
     }
   }
 );
-
 
 // Función para registrar usuario
 export const registerUser = async (userData) => {
@@ -58,8 +65,8 @@ export const registerUser = async (userData) => {
     const response = await api.post('/auth/register', userData);
     return response;
   } catch (error) {
-    console.error('Registration error:', error); // Log del error original de Axios
-    throw error; // Re-lanza el error para que sea manejado por el componente de UI
+    console.error('Registration error:', error);
+    throw error;
   }
 };
 
@@ -69,21 +76,9 @@ export const loginUser = async (credentials) => {
     const response = await api.post('/auth/login', credentials);
     return response;
   } catch (error) {
-    console.error('Login error:', error); // Log del error original de Axios
+    console.error('Login error:', error);
     throw error;
   }
 };
 
-// Más funciones de API pueden ir aquí (ej. para productos, órdenes, etc.)
-// Ejemplo:
-// export const getProducts = async () => {
-//   try {
-//     const response = await api.get('/inventory/products');
-//     return response.data;
-//   } catch (error) {
-//     console.error('Error fetching products:', error);
-//     throw error;
-//   }
-// };
-
-export default api; // Exporta la instancia de Axios por si la necesitas en otros lugares
+export default api;
