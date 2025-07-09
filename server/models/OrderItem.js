@@ -2,7 +2,7 @@
 
 import { DataTypes } from 'sequelize';
 import { sequelize } from '../config/database.js'; // Importa la instancia de Sequelize
-import Order from './Order.js';     // Importa el modelo Order
+import Order from './Order.js';    // Importa el modelo Order
 import Product from './Product.js'; // Importa el modelo Product
 
 const OrderItem = sequelize.define('OrderItem', {
@@ -15,7 +15,7 @@ const OrderItem = sequelize.define('OrderItem', {
     type: DataTypes.INTEGER,
     allowNull: false,
     references: {
-      model: 'orders', // Nombre de la tabla de órdenes
+      model: Order, // CAMBIO CLAVE AQUÍ: Ahora referencia al OBJETO MODELO Order
       key: 'id',
     },
     onDelete: 'CASCADE', // Si se elimina una orden, sus ítems también se eliminan
@@ -24,7 +24,7 @@ const OrderItem = sequelize.define('OrderItem', {
     type: DataTypes.INTEGER,
     allowNull: false,
     references: {
-      model: 'products', // Nombre de la tabla de productos
+      model: Product, // CAMBIO CLAVE AQUÍ: Ahora referencia al OBJETO MODELO Product
       key: 'id',
     },
     onDelete: 'RESTRICT', // No permitir eliminar un producto si está en órdenes existentes
