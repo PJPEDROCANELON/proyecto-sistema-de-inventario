@@ -27,24 +27,32 @@ export const sequelize = new Sequelize(DB_NAME, DB_USER, DB_PASSWORD, {
   }
 });
 
-// NUEVA FUNCIÓN: Para sincronizar la base de datos
-// ATENCIÓN: { force: true } eliminará y recreará TODAS las tablas.
-// Úsalo solo cuando no te importe perder los datos existentes.
-// Después de la primera ejecución, cámbialo a { alter: true } para actualizaciones incrementales.
+// Función para sincronizar la base de datos
 export const synchronizeDatabase = async () => {
   try {
-    // IMPORTANTE PARA LA PRIMERA EJECUCIÓN (BORRA Y CREA TODO DESDE CERO)
-    // Descomenta la siguiente línea para tu primera ejecución después de añadir los nuevos campos
-    await sequelize.sync({ alter: true })
-    console.log('✅ Database synchronized (all models processed - ALTERED).')
-    
-    // UNA VEZ QUE HAYAS EJECUTADO CON { force: true } CON ÉXITO Y HAYA CREADO LAS COLUMNAS:
-    // Comenta la línea anterior 'force: true' y descomenta la siguiente para futuras actualizaciones incrementales
-    // await sequelize.sync({ alter: true }); 
-    // console.log('✅ Database synchronized (all models processed - ALTERED).');
+    await sequelize.authenticate();
+    console.log('✅ MySQL connection established');
+
+    // Deshabilitar temporalmente la verificación de claves foráneas
+    // Esto permite que Sequelize cree tablas con dependencias de claves foráneas
+    // sin preocuparse por el orden inicial de creación.
+    await sequelize.query('SET FOREIGN_KEY_CHECKS = 0', { raw: true });
+    console.log('ℹ️ Verificación de claves foráneas deshabilitada temporalmente.');
+
+    // Sincronizar todos los modelos
+    // { alter: true } intenta realizar cambios incrementales en la base de datos
+    // sin eliminar datos existentes.
+    // Si necesitas recrear todas las tablas desde cero (y perder todos los datos),
+    // usa { force: true } en su lugar, pero ¡úSALO CON CAUTELA!
+    await sequelize.sync({ alter: true });
+    console.log('✅ Base de datos sincronizada correctamente (modelos procesados - ALTERED).');
+
+    // Re-habilitar la verificación de claves foráneas
+    await sequelize.query('SET FOREIGN_KEY_CHECKS = 1', { raw: true });
+    console.log('ℹ️ Verificación de claves foráneas re-habilitada.');
 
   } catch (error) {
-    console.error('❌ Error synchronizing database:', error);
+    console.error('❌ Error sincronizando base de datos:', error);
     throw error; // Propagar el error para que la aplicación no intente iniciar
   }
 };
