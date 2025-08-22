@@ -1,9 +1,10 @@
 // C:\Users\pedro\Desktop\project\src\api\exchangeRateService.ts
 
-import axios from 'axios'; // CAMBIO: Eliminada la importación de AxiosError
-import { NeoStockResponse, ExchangeRate } from '../types'; 
+import axios, { isAxiosError } from 'axios';
+import { NeoStockResponse, ExchangeRate } from '../types';
 
-const API_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001/api';
+// Unifica el nombre de la variable de entorno para que coincida con ApiGateway.ts
+const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api';
 
 const exchangeRateService = {
   /**
@@ -28,10 +29,10 @@ const exchangeRateService = {
         }
       );
       return response.data;
-    } catch (error: unknown) { 
+    } catch (error: unknown) {
       console.error('❌ Error al añadir tasa de cambio:', error);
       let errorMessage = 'Error de conexión al añadir tasa de cambio.';
-      if (axios.isAxiosError(error)) { 
+      if (isAxiosError(error)) {
         errorMessage = error.response?.data?.message || errorMessage;
       }
       return { success: false, data: null, message: errorMessage };
@@ -56,10 +57,10 @@ const exchangeRateService = {
         }
       );
       return response.data;
-    } catch (error: unknown) { 
+    } catch (error: unknown) {
       console.error('❌ Error al obtener la última tasa de cambio:', error);
       let errorMessage = 'Error de conexión al obtener la tasa de cambio.';
-      if (axios.isAxiosError(error)) { 
+      if (isAxiosError(error)) {
         errorMessage = error.response?.data?.message || errorMessage;
       }
       return { success: false, data: null, message: errorMessage };
