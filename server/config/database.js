@@ -61,9 +61,20 @@ export const synchronizeDatabase = async () => {
       console.log('ℹ️ Foreign key checks temporarily disabled.');
     }
 
-    // Sincronizar todos los modelos
-    await sequelize.sync({ alter: true });
-    console.log('✅ Database synchronized successfully (models processed - ALTERED).');
+    // Intentar sincronizar todos los modelos
+    try {
+      await sequelize.sync({ alter: true });
+      console.log('✅ Database synchronized successfully (models processed - ALTERED).');
+    } catch (syncError) {
+      // Si el error es de sintaxis (común en PostgreSQL), re-intentar sin `alter: true`
+      if (isPostgres && syncError.parent && syncError.parent.code === '42601') {
+        console.warn('⚠️ Syntax error during sync. Retrying without { alter: true } to prevent table drop...');
+        await sequelize.sync();
+        console.log('✅ Database synchronized successfully (models processed - NO ALTER).');
+      } else {
+        throw syncError; // Propagar el error si no es el esperado
+      }
+    }
 
     // Solo para MySQL: Re-habilitar la verificación de claves foráneas
     if (!isPostgres) {
