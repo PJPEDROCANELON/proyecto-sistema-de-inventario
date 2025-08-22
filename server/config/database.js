@@ -5,54 +5,76 @@ import dotenv from 'dotenv';
 
 dotenv.config(); // Cargar variables de entorno
 
-const DB_NAME = process.env.DB_NAME;
-const DB_USER = process.env.DB_USER;
-const DB_PASSWORD = process.env.DB_PASSWORD;
-const DB_HOST = process.env.DB_HOST || 'localhost';
-const DB_DIALECT = process.env.DB_DIALECT || 'mysql'; // O 'postgres', 'sqlite', etc.
+let sequelize;
+let isPostgres = false;
 
-// Crear una instancia de Sequelize
-export const sequelize = new Sequelize(DB_NAME, DB_USER, DB_PASSWORD, {
-  host: DB_HOST,
-  dialect: DB_DIALECT,
-  logging: false, // Desactiva los logs SQL por defecto; cámbialo a true para depurar
-  pool: {
-    max: 5,
-    min: 0,
-    acquire: 30000,
-    idle: 10000
-  },
-  define: {
-    timestamps: true, // Habilita createdAt y updatedAt por defecto
-  }
-});
+// Determinar si usar la URL de Render (PostgreSQL) o las variables locales (MySQL)
+if (process.env.DATABASE_URL) {
+  // Entorno de producción (Render)
+  console.log('Detected DATABASE_URL variable. Connecting to PostgreSQL...');
+  sequelize = new Sequelize(process.env.DATABASE_URL, {
+    dialect: 'postgres',
+    protocol: 'postgres',
+    dialectOptions: {
+      ssl: {
+        require: true,
+        rejectUnauthorized: false
+      }
+    },
+    logging: false,
+  });
+  isPostgres = true;
+} else {
+  // Entorno de desarrollo local (MySQL)
+  console.log('No DATABASE_URL found. Connecting to MySQL locally...');
+  const DB_NAME = process.env.DB_NAME;
+  const DB_USER = process.env.DB_USER;
+  const DB_PASSWORD = process.env.DB_PASSWORD;
+  const DB_HOST = process.env.DB_HOST || 'localhost';
+  const DB_DIALECT = 'mysql';
+
+  sequelize = new Sequelize(DB_NAME, DB_USER, DB_PASSWORD, {
+    host: DB_HOST,
+    dialect: DB_DIALECT,
+    logging: false,
+    pool: {
+      max: 5,
+      min: 0,
+      acquire: 30000,
+      idle: 10000
+    },
+    define: {
+      timestamps: true,
+    }
+  });
+}
 
 // Función para sincronizar la base de datos
 export const synchronizeDatabase = async () => {
   try {
     await sequelize.authenticate();
-    console.log('✅ MySQL connection established');
+    console.log(`✅ Connection established with ${isPostgres ? 'PostgreSQL' : 'MySQL'}`);
 
-    // Deshabilitar temporalmente la verificación de claves foráneas
-    // Esto permite que Sequelize cree tablas con dependencias de claves foráneas
-    // sin preocuparse por el orden inicial de creación.
-    await sequelize.query('SET FOREIGN_KEY_CHECKS = 0', { raw: true });
-    console.log('ℹ️ Verificación de claves foráneas deshabilitada temporalmente.');
+    // Solo para MySQL: Deshabilitar la verificación de claves foráneas temporalmente
+    if (!isPostgres) {
+      await sequelize.query('SET FOREIGN_KEY_CHECKS = 0', { raw: true });
+      console.log('ℹ️ Foreign key checks temporarily disabled.');
+    }
 
     // Sincronizar todos los modelos
-    // { alter: true } intenta realizar cambios incrementales en la base de datos
-    // sin eliminar datos existentes.
-    // Si necesitas recrear todas las tablas desde cero (y perder todos los datos),
-    // usa { force: true } en su lugar, pero ¡úSALO CON CAUTELA!
     await sequelize.sync({ alter: true });
-    console.log('✅ Base de datos sincronizada correctamente (modelos procesados - ALTERED).');
+    console.log('✅ Database synchronized successfully (models processed - ALTERED).');
 
-    // Re-habilitar la verificación de claves foráneas
-    await sequelize.query('SET FOREIGN_KEY_CHECKS = 1', { raw: true });
-    console.log('ℹ️ Verificación de claves foráneas re-habilitada.');
+    // Solo para MySQL: Re-habilitar la verificación de claves foráneas
+    if (!isPostgres) {
+      await sequelize.query('SET FOREIGN_KEY_CHECKS = 1', { raw: true });
+      console.log('ℹ️ Foreign key checks re-enabled.');
+    }
 
   } catch (error) {
-    console.error('❌ Error sincronizando base de datos:', error);
-    throw error; // Propagar el error para que la aplicación no intente iniciar
+    console.error('❌ Error syncing database:', error);
+    throw error;
   }
 };
+
+export { sequelize };
